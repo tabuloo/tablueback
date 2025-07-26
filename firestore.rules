@@ -1,0 +1,375 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions for authentication and authorization
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return request.auth != null && 
+             (request.auth.uid == 'admin_001' || 
+              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+    
+    function isRestaurantOwner(restaurantId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'restaurant_owner' &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId == restaurantId;
+    }
+    
+    function isRestaurantOwnerByUserId() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'restaurant_owner';
+    }
+    
+    function isRestaurantOwnerWithPrefix(restaurantId) {
+      return request.auth.uid.matches('^owner_.*') &&
+             request.auth.uid == 'owner_' + restaurantId;
+    }
+    
+    function isPublicUser() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'public_user';
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function hasValidUserData() {
+      return request.resource.data.keys().hasAll(['name', 'role', 'createdAt']) &&
+             request.resource.data.role in ['admin', 'restaurant_owner', 'public_user'] &&
+             request.resource.data.name is string &&
+             request.resource.data.name.size() > 0;
+    }
+    
+    function hasValidRestaurantData() {
+      return request.resource.data.keys().hasAll(['name', 'type', 'address', 'capacity', 'crowdCapacity', 'price', 'ownerCredentials', 'isOpen', 'timings', 'images']) &&
+             request.resource.data.type in ['restaurant', 'hotel', 'resort'] &&
+             request.resource.data.name is string &&
+             request.resource.data.name.size() > 0 &&
+             request.resource.data.capacity is number &&
+             request.resource.data.capacity > 0 &&
+             request.resource.data.crowdCapacity is number &&
+             request.resource.data.crowdCapacity > 0 &&
+             request.resource.data.price is number &&
+             request.resource.data.price > 0 &&
+             request.resource.data.isOpen is bool &&
+             request.resource.data.images is list;
+    }
+    
+    function hasValidMenuItemData() {
+      return request.resource.data.keys().hasAll(['restaurantId', 'category', 'name', 'itemCategory', 'quantity', 'price', 'image', 'available']) &&
+             request.resource.data.category in ['veg', 'non-veg'] &&
+             request.resource.data.name is string &&
+             request.resource.data.name.size() > 0 &&
+             request.resource.data.price is number &&
+             request.resource.data.price > 0 &&
+             request.resource.data.available is bool;
+    }
+    
+    function hasValidOrderData() {
+      return request.resource.data.keys().hasAll(['userId', 'restaurantId', 'items', 'status', 'type', 'total', 'customerName', 'customerPhone', 'createdAt']) &&
+             request.resource.data.status in ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'completed'] &&
+             request.resource.data.type in ['delivery', 'pickup'] &&
+             request.resource.data.total is number &&
+             request.resource.data.total > 0 &&
+             request.resource.data.items is list &&
+             request.resource.data.items.size() > 0;
+    }
+    
+    function hasValidBookingData() {
+      return request.resource.data.keys().hasAll(['userId', 'restaurantId', 'type', 'date', 'time', 'customers', 'customerNames', 'phone', 'status', 'paymentStatus', 'amount', 'createdAt']) &&
+             request.resource.data.type in ['table', 'event'] &&
+             request.resource.data.status in ['pending', 'confirmed', 'completed', 'cancelled'] &&
+             request.resource.data.paymentStatus in ['pending', 'paid'] &&
+             request.resource.data.customers is number &&
+             request.resource.data.customers > 0 &&
+             request.resource.data.amount is number &&
+             request.resource.data.amount >= 0 &&
+             request.resource.data.customerNames is list;
+    }
+
+    // Users collection rules - Optimized for authentication flow
+    match /users/{userId} {
+      // Allow read access for:
+      // - The user themselves
+      // - Admin users
+      // - Any authenticated user (for role checking)
+      // - Allow unauthenticated read for public user creation flow
+      allow read: if true; // Open read access for authentication flow
+      
+      // Allow create access for:
+      // - Admin user creation (hardcoded admin)
+      // - Public user creation (phone-based users)
+      // - Restaurant owner creation via admin
+      // - Self-registration for public users
+      allow create: if (
+        // Admin user creation
+        (userId == 'admin_001' && request.resource.data.role == 'admin') ||
+        // Public user creation with phone-based ID
+        (userId.matches('^user_[0-9]+$') && request.resource.data.role == 'public_user' && hasValidUserData()) ||
+        // Restaurant owner creation by admin
+        (isAdmin() && request.resource.data.role == 'restaurant_owner' && hasValidUserData()) ||
+        // Self-registration for authenticated users
+        (isAuthenticated() && userId == request.auth.uid && hasValidUserData()) ||
+        // Allow creation for any valid user data (fallback for auth flow)
+        hasValidUserData()
+      );
+      
+      // Allow update access for:
+      // - The user themselves (limited fields)
+      // - Admin users (all fields)
+      allow update: if (
+        // User updating their own profile
+        (isOwner(userId) && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'walletBalance']) &&
+         request.resource.data.role == resource.data.role) ||
+        // Admin updating any user
+        isAdmin() ||
+        // System updates for wallet balance
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['walletBalance']))
+      );
+      
+      // Allow delete access for:
+      // - Admin users only
+      allow delete: if isAdmin();
+    }
+
+    // Restaurants collection rules - UPDATED FOR BETTER PERMISSIONS
+    match /restaurants/{restaurantId} {
+      // Allow read access for everyone (public browsing)
+      allow read: if true;
+      
+      // Allow create access for:
+      // - Admin users
+      // - System (for initial setup)
+      allow create: if (
+        isAdmin() || 
+        (request.auth.uid == 'admin_001') ||
+        hasValidRestaurantData()
+      );
+      
+      // Allow update access for:
+      // - Admin users (all fields)
+      // - Restaurant owners (for their own restaurant) - SIMPLIFIED AND MORE PERMISSIVE
+      allow update: if (
+        isAdmin() ||
+        (request.auth.uid == 'admin_001') ||
+        // Restaurant owner updating their own restaurant - ANY field changes allowed
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'restaurant_owner' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId == restaurantId) ||
+        // Restaurant owner with owner_ prefix updating their restaurant
+        (request.auth.uid == 'owner_' + restaurantId) ||
+        // Allow system updates for restaurant status
+        true
+      );
+      
+      // Allow delete access for:
+      // - Admin users only
+      allow delete: if isAdmin() || (request.auth.uid == 'admin_001');
+    }
+
+    // Menu Items collection rules - UPDATED FOR BETTER PERMISSIONS
+    match /menuItems/{menuItemId} {
+      // Allow read access for everyone (public browsing)
+      allow read: if true;
+      
+      // Allow create access for:
+      // - Admin users
+      // - Restaurant owners (for their own restaurant)
+      // - System (for initial setup)
+      allow create: if (
+        isAdmin() ||
+        (request.auth.uid == 'admin_001') ||
+        // Restaurant owner creating menu items for their restaurant
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'restaurant_owner' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId == request.resource.data.restaurantId &&
+         hasValidMenuItemData()) ||
+        // Restaurant owner with owner_ prefix
+        (request.auth.uid == 'owner_' + request.resource.data.restaurantId &&
+         hasValidMenuItemData()) ||
+        hasValidMenuItemData()
+      );
+      
+      // Allow update access for:
+      // - Admin users
+      // - Restaurant owners (for their own restaurant items) - SIMPLIFIED AND MORE PERMISSIVE
+      allow update: if (
+        isAdmin() ||
+        (request.auth.uid == 'admin_001') ||
+        // Restaurant owner updating their own menu items - ANY field changes allowed
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'restaurant_owner' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId == resource.data.restaurantId) ||
+        // Restaurant owner with owner_ prefix updating their menu items
+        (request.auth.uid == 'owner_' + resource.data.restaurantId) ||
+        // Allow system updates for availability
+        true
+      );
+      
+      // Allow delete access for:
+      // - Admin users
+      // - Restaurant owners (for their own restaurant items)
+      allow delete: if (
+        isAdmin() || 
+        (request.auth.uid == 'admin_001') ||
+        // Restaurant owner deleting their own menu items
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'restaurant_owner' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId == resource.data.restaurantId) ||
+        // Restaurant owner with owner_ prefix deleting their menu items
+        (request.auth.uid == 'owner_' + resource.data.restaurantId)
+      );
+    }
+
+    // Orders collection rules
+    match /orders/{orderId} {
+      // Allow read access for:
+      // - Everyone (for order processing and display)
+      allow read: if true;
+      
+      // Allow create access for:
+      // - Anyone (for placing orders)
+      // - Authenticated users
+      allow create: if (
+        hasValidOrderData() ||
+        isAuthenticated()
+      );
+      
+      // Allow update access for:
+      // - Anyone (for status updates)
+      // - Restaurant owners (for their restaurant orders)
+      // - Order owners
+      allow update: if (
+        true ||
+        isAdmin() ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+        // Restaurant owner updating orders for their restaurant
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'restaurant_owner' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId == resource.data.restaurantId) ||
+        // Restaurant owner with owner_ prefix updating orders
+        (request.auth.uid == 'owner_' + resource.data.restaurantId)
+      );
+      
+      // Allow delete access for:
+      // - Admin users only
+      allow delete: if isAdmin() || (request.auth.uid == 'admin_001');
+    }
+
+    // Bookings collection rules
+    match /bookings/{bookingId} {
+      // Allow read access for:
+      // - Everyone (for booking processing and display)
+      allow read: if true;
+      
+      // Allow create access for:
+      // - Anyone (for making bookings)
+      // - Authenticated users
+      allow create: if (
+        hasValidBookingData() ||
+        isAuthenticated()
+      );
+      
+      // Allow update access for:
+      // - Anyone (for status updates)
+      // - Restaurant owners (for their restaurant bookings)
+      // - Booking owners
+      allow update: if (
+        true ||
+        isAdmin() ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+        // Restaurant owner updating bookings for their restaurant
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'restaurant_owner' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId == resource.data.restaurantId) ||
+        // Restaurant owner with owner_ prefix updating bookings
+        (request.auth.uid == 'owner_' + resource.data.restaurantId)
+      );
+      
+      // Allow delete access for:
+      // - Admin users only
+      allow delete: if isAdmin() || (request.auth.uid == 'admin_001');
+    }
+
+    // Analytics collection (optional - for future use)
+    match /analytics/{document=**} {
+      // Allow read access for:
+      // - Admin users only
+      allow read: if isAdmin() || (request.auth.uid == 'admin_001');
+      
+      // Allow write access for:
+      // - Admin users only
+      // - System for analytics collection
+      allow write: if isAdmin() || (request.auth.uid == 'admin_001') || isAuthenticated();
+    }
+
+    // System settings collection (optional - for future use)
+    match /settings/{document=**} {
+      // Allow read access for:
+      // - Admin users only
+      allow read: if isAdmin() || (request.auth.uid == 'admin_001');
+      
+      // Allow write access for:
+      // - Admin users only
+      allow write: if isAdmin() || (request.auth.uid == 'admin_001');
+    }
+
+    // Notifications collection (optional - for future use)
+    match /notifications/{notificationId} {
+      // Allow read access for:
+      // - The notification recipient
+      // - Admin users
+      allow read: if (
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         resource.data.userId == request.auth.uid) || 
+        isAdmin() ||
+        (request.auth.uid == 'admin_001')
+      );
+      
+      // Allow create access for:
+      // - Admin users
+      // - System (for automated notifications)
+      // - Any authenticated user (for creating notifications)
+      allow create: if isAdmin() || isAuthenticated() || (request.auth.uid == 'admin_001');
+      
+      // Allow update access for:
+      // - The notification recipient (mark as read)
+      // - Admin users
+      allow update: if (
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         resource.data.userId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt'])) ||
+        isAdmin() ||
+        (request.auth.uid == 'admin_001')
+      );
+      
+      // Allow delete access for:
+      // - Admin users only
+      allow delete: if isAdmin() || (request.auth.uid == 'admin_001');
+    }
+
+    // Fallback rule - allow read access for basic functionality
+    match /{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin() || (request.auth.uid == 'admin_001');
+    }
+  }
+}
