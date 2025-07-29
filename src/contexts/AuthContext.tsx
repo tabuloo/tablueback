@@ -55,31 +55,79 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Check for stored user data on app initialization
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // Get user data from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUser({
-            id: firebaseUser.uid,
-            name: userData.name || firebaseUser.displayName || 'User',
-            email: userData.email || firebaseUser.email || undefined,
-            phone: userData.phone,
-            role: userData.role || 'public_user',
-            restaurantId: userData.restaurantId,
-            walletBalance: userData.walletBalance || 0
-          });
-        }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
+    const initializeAuth = async () => {
+      try {
+        console.log('Initializing authentication...');
+        // First check Firebase Auth state
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+          if (firebaseUser) {
+            console.log('Firebase user found:', firebaseUser.uid);
+            // Get user data from Firestore
+            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              const userObj: User = {
+                id: firebaseUser.uid,
+                name: userData.name || firebaseUser.displayName || 'User',
+                email: userData.email || firebaseUser.email || undefined,
+                phone: userData.phone,
+                role: userData.role || 'public_user',
+                restaurantId: userData.restaurantId,
+                walletBalance: userData.walletBalance || 0
+              };
+              setUser(userObj);
+              // Store in localStorage for persistence
+              localStorage.setItem('currentUser', JSON.stringify(userObj));
+              console.log('User set from Firebase Auth:', userObj);
+            }
+          } else {
+            console.log('No Firebase user, checking localStorage...');
+            // Check localStorage for custom auth users (restaurant owners, public users, admin)
+            const storedUser = localStorage.getItem('currentUser');
+            if (storedUser) {
+              try {
+                const userData = JSON.parse(storedUser);
+                console.log('Found stored user:', userData);
+                // Verify user still exists in Firestore
+                const userDoc = await getDoc(doc(db, 'users', userData.id));
+                if (userDoc.exists()) {
+                  setUser(userData);
+                  console.log('User restored from localStorage:', userData);
+                } else {
+                  // User no longer exists, clear storage
+                  console.log('User no longer exists in Firestore, clearing storage');
+                  localStorage.removeItem('currentUser');
+                  setUser(null);
+                }
+              } catch (error) {
+                console.error('Error parsing stored user:', error);
+                localStorage.removeItem('currentUser');
+                setUser(null);
+              }
+            } else {
+              console.log('No stored user found');
+              setUser(null);
+            }
+          }
+          setLoading(false);
+        });
 
-    return () => unsubscribe();
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
   }, []);
+
+  // Utility function to check if user is authenticated
+  const isAuthenticated = () => {
+    return user !== null;
+  };
 
   const login = async (credentials: any, role: string): Promise<boolean> => {
     setLoading(true);
@@ -103,13 +151,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             });
           }
           
-          setUser({
+          const adminUser: User = {
             id: 'admin_001',
             name: 'Admin',
             email: 'admin@tabuloo.com',
             phone: '9985121257',
             role: 'admin'
-          });
+          };
+          
+          setUser(adminUser);
+          localStorage.setItem('currentUser', JSON.stringify(adminUser));
+          console.log('Admin user logged in:', adminUser);
           setLoading(false);
           return true;
         }
@@ -120,7 +172,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           // Find restaurant with matching credentials
           const restaurantsSnapshot = await getDocs(collection(db, 'restaurants'));
-          let matchingRestaurant = null;
+          let matchingRestaurant: any = null;
           
           restaurantsSnapshot.forEach((doc) => {
             const restaurant = doc.data();
@@ -130,18 +182,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               matchingRestaurant = { id: doc.id, ...restaurant };
             }
           });
-          
-          // Also sign in to Firebase Auth for proper authentication
-          try {
-            // Create a custom token or use a workaround for restaurant owners
-            // For now, we'll set a flag to indicate this is a restaurant owner session
-            localStorage.setItem('restaurantOwnerSession', JSON.stringify({
-              userId: ownerId,
-              restaurantId: matchingRestaurant.id
-            }));
-          } catch (authError) {
-            console.log('Firebase Auth setup for restaurant owner:', authError);
-          }
           
           if (matchingRestaurant) {
             // Create or update restaurant owner user
@@ -160,13 +200,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               console.log('User creation error (continuing anyway):', error);
             }
             
-            setUser({
+            const ownerUser: User = {
               id: ownerId,
               name: ownerData.name,
               email: ownerData.email,
               role: 'restaurant_owner',
               restaurantId: matchingRestaurant.id
-            });
+            };
+            
+            setUser(ownerUser);
+            localStorage.setItem('currentUser', JSON.stringify(ownerUser));
+            console.log('Restaurant owner logged in:', ownerUser);
             
             setLoading(false);
             return true;
@@ -207,13 +251,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 return false;
               }
               
-              setUser({
+              const publicUser: User = {
                 id: userId,
                 name: userData.name,
                 phone: userData.phone,
                 role: 'public_user',
                 walletBalance: userData.walletBalance || 0
-              });
+              };
+              
+              setUser(publicUser);
+              localStorage.setItem('currentUser', JSON.stringify(publicUser));
+              console.log('Public user logged in:', publicUser);
             } else {
               toast.error('Invalid phone number or password');
               setLoading(false);
@@ -277,13 +325,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       await setDoc(doc(db, 'users', userId), newUser);
       
-      setUser({
+      const publicUser: User = {
         id: userId,
         name: newUser.name,
         phone: newUser.phone,
         role: 'public_user',
         walletBalance: newUser.walletBalance
-      });
+      };
+      
+      setUser(publicUser);
+      localStorage.setItem('currentUser', JSON.stringify(publicUser));
+      console.log('New user registered:', publicUser);
       
       setLoading(false);
       return true;
@@ -297,12 +349,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
+      console.log('Logging out user:', user);
       if (auth.currentUser) {
         await signOut(auth);
       }
-      // Clear restaurant owner session
+      // Clear all stored user data
+      localStorage.removeItem('currentUser');
       localStorage.removeItem('restaurantOwnerSession');
       setUser(null);
+      console.log('User logged out successfully');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -315,7 +370,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           walletBalance: newBalance
         });
         
-        setUser(prev => prev ? { ...prev, walletBalance: newBalance } : null);
+        const updatedUser = { ...user, walletBalance: newBalance };
+        setUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       } catch (error) {
         console.error('Error updating wallet balance:', error);
         toast.error('Failed to update wallet balance');
