@@ -19,10 +19,12 @@ import {
   Instagram,
   Facebook,
   Twitter,
-  Filter
+  Filter,
+  Plus
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
 import BookTableModal from '../components/booking/BookTableModal';
 import OrderFoodModal from '../components/booking/OrderFoodModal';
 import EventBookingModal from '../components/booking/EventBookingModal';
@@ -30,6 +32,7 @@ import EventBookingModal from '../components/booking/EventBookingModal';
 const HomePage: React.FC = () => {
   const { user } = useAuth();
   const { restaurants, menuItems } = useApp();
+  const { addToCart, getItemQuantity } = useCart();
   const [showBookTable, setShowBookTable] = useState(false);
   const [showOrderFood, setShowOrderFood] = useState(false);
   const [showEventBooking, setShowEventBooking] = useState(false);
@@ -334,32 +337,62 @@ const HomePage: React.FC = () => {
 
           {/* Mobile: 2 items per row */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {popularMenuItems.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="w-full h-28 sm:h-36 object-cover rounded-t-lg"
-                />
-                <div className="p-3 sm:p-4">
-                  <div className="flex items-start justify-between mb-1 sm:mb-2">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{item.name}</h3>
-                      <p className="text-gray-600 text-xs sm:text-sm">{item.itemCategory} • {item.quantity}</p>
+            {popularMenuItems.map((item) => {
+              const restaurant = restaurants.find(r => r.id === item.restaurantId);
+              const cartQuantity = getItemQuantity(item.id);
+              
+              return (
+                <div key={item.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-full h-28 sm:h-36 object-cover rounded-t-lg"
+                  />
+                  <div className="p-3 sm:p-4">
+                    <div className="flex items-start justify-between mb-1 sm:mb-2">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{item.name}</h3>
+                        <p className="text-gray-600 text-xs sm:text-sm">{item.itemCategory} • {item.quantity}</p>
+                        {restaurant && (
+                          <p className="text-gray-500 text-xs">{restaurant.name}</p>
+                        )}
+                      </div>
+                      <span className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ml-1 ${
+                        item.category === 'veg' ? 'bg-green-500' : 'bg-red-500'
+                      }`}></span>
                     </div>
-                    <span className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ml-1 ${
-                      item.category === 'veg' ? 'bg-green-500' : 'bg-red-500'
-                    }`}></span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm sm:text-base font-semibold text-gray-900">₹{item.price}</span>
-                    <button className="bg-gradient-to-r from-red-800 to-red-900 text-white px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors">
-                      Order
-                    </button>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm sm:text-base font-semibold text-gray-900">₹{item.price}</span>
+                      {user ? (
+                        <button 
+                          onClick={() => addToCart({
+                            id: item.id,
+                            name: item.name,
+                            price: item.price,
+                            image: item.image,
+                            restaurantId: item.restaurantId,
+                            restaurantName: restaurant?.name || 'Unknown Restaurant',
+                            category: item.category,
+                            itemCategory: item.itemCategory
+                          })}
+                          className="bg-gradient-to-r from-red-800 to-red-900 text-white px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors flex items-center space-x-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>{cartQuantity > 0 ? `Add (${cartQuantity})` : 'Add'}</span>
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => setShowOrderFood(true)}
+                          className="bg-gradient-to-r from-red-800 to-red-900 text-white px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors"
+                        >
+                          Order
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>

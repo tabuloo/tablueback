@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { MapPin, Menu, X, User, LogOut, Shield, Store, Calendar, ShoppingCart, PartyPopper } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
+import { useCart } from '../contexts/CartContext';
 import AuthModal from './auth/AuthModal';
+import CartIcon from './CartIcon';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import BookTableModal from './booking/BookTableModal';
@@ -11,6 +13,7 @@ import EventBookingModal from './booking/EventBookingModal';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
+  const { itemCount } = useCart();
   const navigate = useNavigate();
   const [showBookTable, setShowBookTable] = useState(false);
   const [showOrderFood, setShowOrderFood] = useState(false);
@@ -137,13 +140,22 @@ const Header: React.FC = () => {
               ) : (
                 <div className="hidden md:flex items-center space-x-4">
                   {user.role === 'public_user' && (
-                    <button
-                      onClick={() => navigate('/profile')}
-                      className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <User className="h-5 w-5" />
-                      <span className="text-sm font-medium">Profile</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => navigate('/cart')}
+                        className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <CartIcon />
+                        <span className="text-sm font-medium">Cart</span>
+                      </button>
+                      <button
+                        onClick={() => navigate('/profile')}
+                        className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <User className="h-5 w-5" />
+                        <span className="text-sm font-medium">Profile</span>
+                      </button>
+                    </>
                   )}
                   
                   <div className="flex items-center space-x-2">
@@ -253,15 +265,34 @@ const Header: React.FC = () => {
                       </div>
                     </div>
                     {user.role === 'public_user' && (
-                      <button
-                        onClick={() => {
-                          navigate('/profile');
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className="w-full text-left p-3 text-gray-700 hover:bg-gray-50 rounded-lg"
-                      >
-                        Profile
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            navigate('/cart');
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="w-full text-left p-3 text-gray-700 hover:bg-gray-50 rounded-lg flex items-center justify-between"
+                        >
+                          <div className="flex items-center">
+                            <ShoppingCart className="h-5 w-5 mr-3" />
+                            <span>Cart</span>
+                          </div>
+                          {itemCount > 0 && (
+                            <span className="bg-red-800 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                              {itemCount}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigate('/profile');
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="w-full text-left p-3 text-gray-700 hover:bg-gray-50 rounded-lg"
+                        >
+                          Profile
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => {

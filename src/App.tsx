@@ -3,10 +3,12 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
+import { CartProvider } from './contexts/CartContext';
 import Header from './components/Header';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
+import CartPage from './pages/CartPage';
 import AdminDashboard from './pages/AdminDashboard';
 import RestaurantOwnerDashboard from './pages/RestaurantOwnerDashboard';
 import UserProfile from './pages/UserProfile';
@@ -37,6 +39,16 @@ const AppContent: React.FC = () => {
           } 
         />
         <Route 
+          path="/cart" 
+          element={
+            user && user.role === 'public_user' ? (
+              <CartPage />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        />
+        <Route 
           path="/profile" 
           element={
             user && user.role === 'public_user' ? (
@@ -56,29 +68,31 @@ function App() {
   return (
     <AuthProvider>
       <AppProvider>
-        <Router>
-          <AppContent />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-              success: {
+        <CartProvider>
+          <Router>
+            <AppContent />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
                 style: {
-                  background: '#10B981',
+                  background: '#363636',
+                  color: '#fff',
                 },
-              },
-              error: {
-                style: {
-                  background: '#EF4444',
+                success: {
+                  style: {
+                    background: '#10B981',
+                  },
                 },
-              },
-            }}
-          />
-        </Router>
+                error: {
+                  style: {
+                    background: '#EF4444',
+                  },
+                },
+              }}
+            />
+          </Router>
+        </CartProvider>
       </AppProvider>
     </AuthProvider>
   );
