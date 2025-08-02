@@ -16,6 +16,7 @@ import UserProfile from './pages/UserProfile';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsConditions from './pages/TermsConditions';
 import RefundPolicy from './pages/RefundPolicy';
+import ShippingPolicy from './pages/ShippingPolicy';
 import AboutUs from './pages/AboutUs';
 import ContactUs from './pages/ContactUs';
 
@@ -65,11 +66,12 @@ const AppContent: React.FC = () => {
               )
             } 
           />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms-conditions" element={<TermsConditions />} />
-          <Route path="/refund-policy" element={<RefundPolicy />} />
-          <Route path="/about-us" element={<AboutUs />} />
-          <Route path="/contact-us" element={<ContactUs />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-conditions" element={<TermsConditions />} />
+        <Route path="/refund-policy" element={<RefundPolicy />} />
+        <Route path="/shipping-policy" element={<ShippingPolicy />} />
+        <Route path="/about-us" element={<AboutUs />} />
+        <Route path="/contact-us" element={<ContactUs />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

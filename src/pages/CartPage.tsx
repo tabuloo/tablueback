@@ -82,16 +82,17 @@ const CartPage: React.FC = () => {
       // Create orders for each restaurant
       const orderPromises = Object.entries(itemsByRestaurant).map(([restaurantId, restaurantItems]) => {
         const orderData = {
-          userId: user.uid,
+          userId: user.id,
           restaurantId,
           items: restaurantItems.map(item => ({
             id: item.id,
             name: item.name,
             price: item.price,
-            quantity: item.quantity,
+            quantity: item.quantity.toString(),
             image: item.image,
             category: item.category,
             itemCategory: item.itemCategory,
+            restaurantId: item.restaurantId,
             available: true
           })),
           status: 'pending' as const,
@@ -100,7 +101,8 @@ const CartPage: React.FC = () => {
           address: deliveryDetails.deliveryType === 'delivery' ? deliveryDetails.address : undefined,
           customerName: deliveryDetails.name,
           customerPhone: deliveryDetails.phone,
-          paymentMethod
+          paymentMethod,
+          createdAt: new Date()
         };
 
         return addOrder(orderData);
@@ -337,7 +339,12 @@ const CartPage: React.FC = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Payment Method</h2>
               
               <div className="space-y-3">
-                <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                {/* Cash on Delivery - Highlighted as default */}
+                <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  paymentMethod === 'cod' 
+                    ? 'border-green-500 bg-green-50' 
+                    : 'border-gray-200 hover:border-green-300 hover:bg-green-25'
+                }`}>
                   <input
                     type="radio"
                     value="cod"
@@ -345,11 +352,26 @@ const CartPage: React.FC = () => {
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
                     className="mr-3"
                   />
-                  <Banknote className="h-5 w-5 text-green-600 mr-2" />
-                  <span>Cash on Delivery</span>
+                  <div className="flex items-center flex-1">
+                    <Banknote className="h-6 w-6 text-green-600 mr-3" />
+                    <div>
+                      <span className="font-semibold text-gray-900">Cash on Delivery</span>
+                      <p className="text-sm text-gray-600">Pay when you receive your order</p>
+                    </div>
+                  </div>
+                  {paymentMethod === 'cod' && (
+                    <div className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                      RECOMMENDED
+                    </div>
+                  )}
                 </label>
                 
-                <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                {/* Credit/Debit Card */}
+                <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  paymentMethod === 'card' 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
+                }`}>
                   <input
                     type="radio"
                     value="card"
@@ -357,11 +379,21 @@ const CartPage: React.FC = () => {
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
                     className="mr-3"
                   />
-                  <CreditCard className="h-5 w-5 text-blue-600 mr-2" />
-                  <span>Credit/Debit Card</span>
+                  <div className="flex items-center flex-1">
+                    <CreditCard className="h-6 w-6 text-blue-600 mr-3" />
+                    <div>
+                      <span className="font-semibold text-gray-900">Credit/Debit Card</span>
+                      <p className="text-sm text-gray-600">Secure online payment</p>
+                    </div>
+                  </div>
                 </label>
                 
-                <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                {/* UPI Payment */}
+                <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  paymentMethod === 'upi' 
+                    ? 'border-purple-500 bg-purple-50' 
+                    : 'border-gray-200 hover:border-purple-300 hover:bg-purple-25'
+                }`}>
                   <input
                     type="radio"
                     value="upi"
@@ -369,11 +401,21 @@ const CartPage: React.FC = () => {
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
                     className="mr-3"
                   />
-                  <Wallet className="h-5 w-5 text-purple-600 mr-2" />
-                  <span>UPI Payment</span>
+                  <div className="flex items-center flex-1">
+                    <Wallet className="h-6 w-6 text-purple-600 mr-3" />
+                    <div>
+                      <span className="font-semibold text-gray-900">UPI Payment</span>
+                      <p className="text-sm text-gray-600">Pay using UPI apps</p>
+                    </div>
+                  </div>
                 </label>
                 
-                <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                {/* Digital Wallet */}
+                <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  paymentMethod === 'wallet' 
+                    ? 'border-orange-500 bg-orange-50' 
+                    : 'border-gray-200 hover:border-orange-300 hover:bg-orange-25'
+                }`}>
                   <input
                     type="radio"
                     value="wallet"
@@ -381,20 +423,56 @@ const CartPage: React.FC = () => {
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
                     className="mr-3"
                   />
-                  <Wallet className="h-5 w-5 text-orange-600 mr-2" />
-                  <span>Digital Wallet</span>
+                  <div className="flex items-center flex-1">
+                    <Wallet className="h-6 w-6 text-orange-600 mr-3" />
+                    <div>
+                      <span className="font-semibold text-gray-900">Digital Wallet</span>
+                      <p className="text-sm text-gray-600">Paytm, PhonePe, etc.</p>
+                    </div>
+                  </div>
                 </label>
+              </div>
+              
+              {/* Payment Info */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Cash on Delivery is available for orders above ₹100. 
+                  For online payments, you'll be redirected to our secure payment gateway.
+                </p>
               </div>
             </div>
 
             {/* Checkout Button */}
-            <button
-              onClick={handleCheckout}
-              disabled={isProcessing || items.length === 0}
-              className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white py-3 px-6 rounded-lg hover:from-red-900 hover:to-red-950 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-            >
-              {isProcessing ? 'Processing...' : `Place Order - ₹${finalTotal}`}
-            </button>
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-lg font-semibold text-gray-900">Total Amount</span>
+                  <span className="text-2xl font-bold text-red-800">₹{finalTotal}</span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  {paymentMethod === 'cod' ? 'Pay when you receive your order' : 'Secure online payment'}
+                </p>
+              </div>
+              
+              <button
+                onClick={handleCheckout}
+                disabled={isProcessing || items.length === 0}
+                className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white py-4 px-6 rounded-lg hover:from-red-900 hover:to-red-950 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg shadow-lg"
+              >
+                {isProcessing ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    Processing Order...
+                  </div>
+                ) : (
+                  `Place Order - ₹${finalTotal}`
+                )}
+              </button>
+              
+              <p className="text-xs text-gray-500 mt-3 text-center">
+                By placing this order, you agree to our Terms & Conditions
+              </p>
+            </div>
           </div>
         </div>
       </div>
