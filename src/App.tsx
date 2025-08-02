@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
 import { CartProvider } from './contexts/CartContext';
 import Header from './components/Header';
+import Footer from './components/Footer';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
@@ -12,6 +13,11 @@ import CartPage from './pages/CartPage';
 import AdminDashboard from './pages/AdminDashboard';
 import RestaurantOwnerDashboard from './pages/RestaurantOwnerDashboard';
 import UserProfile from './pages/UserProfile';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsConditions from './pages/TermsConditions';
+import RefundPolicy from './pages/RefundPolicy';
+import AboutUs from './pages/AboutUs';
+import ContactUs from './pages/ContactUs';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
@@ -21,45 +27,53 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header />
-      <Routes>
-        <Route 
-          path="/" 
-          element={
-            user?.role === 'public_user' ? (
-              <HomePage />
-            ) : user?.role === 'admin' ? (
-              <AdminDashboard />
-            ) : user?.role === 'restaurant_owner' ? (
-              <RestaurantOwnerDashboard />
-            ) : (
-              <HomePage />
-            )
-          } 
-        />
-        <Route 
-          path="/cart" 
-          element={
-            user && user.role === 'public_user' ? (
-              <CartPage />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          } 
-        />
-        <Route 
-          path="/profile" 
-          element={
-            user && user.role === 'public_user' ? (
-              <UserProfile />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          } 
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <main className="flex-1">
+        <Routes>
+          <Route 
+            path="/" 
+            element={
+              user?.role === 'public_user' ? (
+                <HomePage />
+              ) : user?.role === 'admin' ? (
+                <AdminDashboard />
+              ) : user?.role === 'restaurant_owner' ? (
+                <RestaurantOwnerDashboard />
+              ) : (
+                <HomePage />
+              )
+            } 
+          />
+          <Route 
+            path="/cart" 
+            element={
+              user && user.role === 'public_user' ? (
+                <CartPage />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } 
+          />
+          <Route 
+            path="/profile" 
+            element={
+              user && user.role === 'public_user' ? (
+                <UserProfile />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } 
+          />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-conditions" element={<TermsConditions />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
+          <Route path="/about-us" element={<AboutUs />} />
+          <Route path="/contact-us" element={<ContactUs />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+      <Footer />
     </div>
   );
 };
