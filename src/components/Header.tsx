@@ -13,7 +13,7 @@ import EventBookingModal from './booking/EventBookingModal';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
-  const { itemCount } = useCart();
+  const { getTotalItems } = useCart();
   const navigate = useNavigate();
   const [showBookTable, setShowBookTable] = useState(false);
   const [showOrderFood, setShowOrderFood] = useState(false);
@@ -277,9 +277,9 @@ const Header: React.FC = () => {
                             <ShoppingCart className="h-5 w-5 mr-3" />
                             <span>Cart</span>
                           </div>
-                          {itemCount > 0 && (
+                          {getTotalItems() > 0 && (
                             <span className="bg-red-800 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                              {itemCount}
+                              {getTotalItems()}
                             </span>
                           )}
                         </button>

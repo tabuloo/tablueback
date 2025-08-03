@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { User, Phone, Mail, MapPin, Clock, Package, Calendar, Settings, Wallet, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { validateIndianPhoneNumber, formatPhoneNumber } from '../utils/validation';
+import AddressForm from '../components/AddressForm';
 
 const UserProfile: React.FC = () => {
   const { user, updateWalletBalance } = useAuth();
@@ -14,20 +15,14 @@ const UserProfile: React.FC = () => {
     email: user?.email || '',
     phone: user?.phone || ''
   });
-  const [addresses, setAddresses] = useState([
-    { id: '1', label: 'Home', address: '123 Main Street, City, State 12345', isDefault: true },
-    { id: '2', label: 'Work', address: '456 Business Ave, Downtown, State 12345', isDefault: false }
-  ]);
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [showAddAddress, setShowAddAddress] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<any>(null);
   const [showAddMoney, setShowAddMoney] = useState(false);
   const [addMoneyAmount, setAddMoneyAmount] = useState('');
 
-  // Mock wallet transactions
-  const walletTransactions = [
-    { id: '1', type: 'credit', amount: 50.00, description: 'Welcome bonus', date: '2025-01-15', status: 'completed' },
-    { id: '2', type: 'debit', amount: 25.50, description: 'Order payment - Golden Spoon', date: '2025-01-14', status: 'completed' },
-    { id: '3', type: 'credit', amount: 100.00, description: 'Added money', date: '2025-01-13', status: 'completed' },
-    { id: '4', type: 'debit', amount: 15.75, description: 'Table booking advance', date: '2025-01-12', status: 'completed' }
-  ];
+  // Dynamic wallet transactions - empty for now
+  const walletTransactions: any[] = [];
 
   const userOrders = orders.filter(order => order.userId === user?.id);
   const userBookings = bookings.filter(booking => booking.userId === user?.id);
@@ -52,6 +47,38 @@ const UserProfile: React.FC = () => {
     // In a real app, this would update the user in the database
     setEditMode(false);
     // You could call updateUser function here
+  };
+
+  const handleSaveAddress = (addressData: any) => {
+    if (editingAddress) {
+      // Update existing address
+      setAddresses(prev => prev.map(addr => 
+        addr.id === editingAddress.id ? { ...addressData, id: addr.id, isDefault: addr.isDefault } : addr
+      ));
+      setEditingAddress(null);
+    } else {
+      // Add new address
+      const newAddress = {
+        ...addressData,
+        id: Date.now().toString(),
+        isDefault: addresses.length === 0 // First address becomes default
+      };
+      setAddresses(prev => [...prev, newAddress]);
+    }
+    setShowAddAddress(false);
+  };
+
+  const handleDeleteAddress = (addressId: string) => {
+    if (confirm('Are you sure you want to delete this address?')) {
+      setAddresses(prev => prev.filter(addr => addr.id !== addressId));
+    }
+  };
+
+  const handleSetDefaultAddress = (addressId: string) => {
+    setAddresses(prev => prev.map(addr => ({
+      ...addr,
+      isDefault: addr.id === addressId
+    })));
   };
 
   if (!user) {
@@ -362,41 +389,81 @@ const UserProfile: React.FC = () => {
                 <div className="p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
                     <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 sm:mb-0">Saved Addresses</h2>
-                    <button className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                      Add New Address
+                    <button 
+                      onClick={() => setShowAddAddress(true)}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm flex items-center space-x-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Add New Address</span>
                     </button>
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    {addresses.map((address) => (
-                      <div key={address.id} className="border rounded-lg p-3 sm:p-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center mb-2">
-                              <h3 className="font-medium text-gray-900 text-sm sm:text-base mr-2">{address.label}</h3>
-                              {address.isDefault && (
-                                <span className="bg-blue-100 text-blue-800 text-xs px-1 py-0.5 rounded-full">
-                                  Default
+                  {addresses.length === 0 ? (
+                    <div className="text-center py-8">
+                      <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No addresses saved</h3>
+                      <p className="text-gray-600 mb-4">Add your first address to get started</p>
+                      <button 
+                        onClick={() => setShowAddAddress(true)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      >
+                        Add Address
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      {addresses.map((address) => (
+                        <div key={address.id} className="border rounded-lg p-3 sm:p-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center mb-2">
+                                <h3 className="font-medium text-gray-900 text-sm sm:text-base mr-2">{address.label}</h3>
+                                {address.isDefault && (
+                                  <span className="bg-blue-100 text-blue-800 text-xs px-1 py-0.5 rounded-full">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-gray-600 flex items-start text-xs sm:text-sm">
+                                <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 mt-0.5 text-gray-400 flex-shrink-0" />
+                                <span className="line-clamp-2">
+                                  {address.location?.formattedAddress || 
+                                    `${address.details.street}, ${address.details.city}, ${address.details.state} ${address.details.pincode}`
+                                  }
+                                  {address.details.landmark && !address.location?.formattedAddress && ` (${address.details.landmark})`}
                                 </span>
+                              </p>
+                            </div>
+                            <div className="flex flex-col space-y-1 ml-2">
+                              <button 
+                                onClick={() => {
+                                  setEditingAddress(address);
+                                  setShowAddAddress(true);
+                                }}
+                                className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm"
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteAddress(address.id)}
+                                className="text-red-600 hover:text-red-700 text-xs sm:text-sm"
+                              >
+                                Delete
+                              </button>
+                              {!address.isDefault && (
+                                <button 
+                                  onClick={() => handleSetDefaultAddress(address.id)}
+                                  className="text-green-600 hover:text-green-700 text-xs sm:text-sm"
+                                >
+                                  Set Default
+                                </button>
                               )}
                             </div>
-                            <p className="text-gray-600 flex items-start text-xs sm:text-sm">
-                              <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 mt-0.5 text-gray-400 flex-shrink-0" />
-                              <span className="line-clamp-2">{address.address}</span>
-                            </p>
-                          </div>
-                          <div className="flex flex-col space-y-1 ml-2">
-                            <button className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm">
-                              Edit
-                            </button>
-                            <button className="text-red-600 hover:text-red-700 text-xs sm:text-sm">
-                              Delete
-                            </button>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -439,41 +506,66 @@ const UserProfile: React.FC = () => {
                   {/* Transaction History */}
                   <div>
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Recent Transactions</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      {walletTransactions.map((transaction) => (
-                        <div key={transaction.id} className="flex items-center justify-between p-3 sm:p-4 border rounded-lg">
-                          <div className="flex items-center space-x-2 sm:space-x-3">
-                            <div className={`p-1.5 sm:p-2 rounded-full ${
-                              transaction.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
-                            }`}>
-                              {transaction.type === 'credit' ? (
-                                <ArrowDownLeft className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
-                              ) : (
-                                <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
-                              )}
+                    {walletTransactions.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Wallet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions yet</h3>
+                        <p className="text-gray-600">Your transaction history will appear here</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        {walletTransactions.map((transaction) => (
+                          <div key={transaction.id} className="flex items-center justify-between p-3 sm:p-4 border rounded-lg">
+                            <div className="flex items-center space-x-2 sm:space-x-3">
+                              <div className={`p-1.5 sm:p-2 rounded-full ${
+                                transaction.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
+                              }`}>
+                                {transaction.type === 'credit' ? (
+                                  <ArrowDownLeft className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
+                                ) : (
+                                  <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{transaction.description}</p>
+                                <p className="text-xs sm:text-sm text-gray-500">{transaction.date}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900 text-sm">{transaction.description}</p>
-                              <p className="text-xs sm:text-sm text-gray-500">{transaction.date}</p>
+                            <div className="text-right">
+                              <p className={`font-semibold text-sm ${
+                                transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {transaction.type === 'credit' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
+                              </p>
+                              <p className="text-xs sm:text-sm text-gray-500 capitalize">{transaction.status}</p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className={`font-semibold text-sm ${
-                              transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {transaction.type === 'credit' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
-                            </p>
-                            <p className="text-xs sm:text-sm text-gray-500 capitalize">{transaction.status}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* Address Form Modal */}
+        {showAddAddress && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <AddressForm
+                onSave={handleSaveAddress}
+                onCancel={() => {
+                  setShowAddAddress(false);
+                  setEditingAddress(null);
+                }}
+                initialData={editingAddress}
+                isEditing={!!editingAddress}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Add Money Modal */}
         {showAddMoney && (

@@ -9,14 +9,14 @@ interface CartIconProps {
 }
 
 const CartIcon: React.FC<CartIconProps> = ({ className = '', showCount = true, onClick }) => {
-  const { itemCount } = useCart();
+  const { getTotalItems } = useCart();
 
   return (
     <div className={`relative ${className}`} onClick={onClick}>
       <ShoppingCart className="h-5 w-5" />
-      {showCount && itemCount > 0 && (
+      {showCount && getTotalItems() > 0 && (
         <span className="absolute -top-1 -right-1 bg-red-800 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-          {itemCount > 99 ? '99+' : itemCount}
+          {getTotalItems() > 99 ? '99+' : getTotalItems()}
         </span>
       )}
     </div>

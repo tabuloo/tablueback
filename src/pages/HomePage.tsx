@@ -32,7 +32,7 @@ import EventBookingModal from '../components/booking/EventBookingModal';
 const HomePage: React.FC = () => {
   const { user } = useAuth();
   const { restaurants, menuItems } = useApp();
-  const { addToCart, getItemQuantity } = useCart();
+  const { addToCart, items } = useCart();
   const [showBookTable, setShowBookTable] = useState(false);
   const [showOrderFood, setShowOrderFood] = useState(false);
   const [showEventBooking, setShowEventBooking] = useState(false);
@@ -339,7 +339,7 @@ const HomePage: React.FC = () => {
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {popularMenuItems.map((item) => {
               const restaurant = restaurants.find(r => r.id === item.restaurantId);
-              const cartQuantity = getItemQuantity(item.id);
+              const cartQuantity = items.find(cartItem => cartItem.id === item.id)?.quantity || 0;
               
               return (
                 <div key={item.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
