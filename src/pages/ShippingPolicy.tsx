@@ -42,21 +42,21 @@ const ShippingPolicy: React.FC = () => {
                   <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                     <h4 className="font-semibold text-green-800 mb-2">Primary Service Areas</h4>
                     <ul className="text-sm text-green-700 space-y-1">
-                      <li>• Central Business District</li>
-                      <li>• Whitefield</li>
-                      <li>• Electronic City</li>
-                      <li>• Koramangala</li>
-                      <li>• Indiranagar</li>
-                      <li>• HSR Layout</li>
+                      <li>• Madanapalle City</li>
+                      <li>• Devalam Extation</li>
+                      <li>• Chittoor City</li>
+                      <li>• Palamaner</li>
+                      <li>• Punganur</li>
+                      <li>• Thamballapalle</li>
                     </ul>
                   </div>
                   <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
                     <h4 className="font-semibold text-yellow-800 mb-2">Extended Areas</h4>
                     <ul className="text-sm text-yellow-700 space-y-1">
-                      <li>• Marathahalli</li>
-                      <li>• Bellandur</li>
-                      <li>• Sarjapur Road</li>
-                      <li>• Outer Ring Road</li>
+                      <li>• Tirupati</li>
+                      <li>• Puttur</li>
+                      <li>• Vayalpad</li>
+                      <li>• Kuppam</li>
                     </ul>
                     <p className="text-xs text-yellow-600 mt-2">* Additional delivery fee may apply</p>
                   </div>
@@ -308,7 +308,7 @@ const ShippingPolicy: React.FC = () => {
                   </p>
                   <div className="space-y-2 text-sm text-blue-700">
                     <p>📧 Email: delivery@tabuloo.com</p>
-                    <p>📞 Phone: +91 98765 43210</p>
+                    <p>📞 Phone: +91 91009 33477</p>
                     <p>⏰ Support Hours: 9:00 AM - 9:00 PM (IST)</p>
                   </div>
                 </div>

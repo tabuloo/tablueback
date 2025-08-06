@@ -94,7 +94,7 @@ const HomePage: React.FC = () => {
   ];
 
   const stats = [
-    { number: '500+', label: 'Restaurants', icon: Utensils },
+    { number: `${restaurants.length}+`, label: 'Restaurants', icon: Utensils },
     { number: '50K+', label: 'Happy Customers', icon: Users },
     { number: '100K+', label: 'Orders Delivered', icon: ShoppingCart },
     { number: '4.9', label: 'Average Rating', icon: Star }
@@ -175,7 +175,7 @@ const HomePage: React.FC = () => {
                 </div>
                 <div className="absolute -top-4 -right-4 sm:-top-6 sm:-right-6 bg-gradient-to-r from-red-800 to-red-900 text-white p-3 sm:p-4 rounded-lg sm:rounded-xl shadow-lg">
                   <div className="text-center">
-                    <div className="font-bold text-base sm:text-lg">500+</div>
+                    <div className="font-bold text-base sm:text-lg">{restaurants.length}+</div>
                     <div className="text-xs sm:text-sm">Restaurants</div>
                   </div>
                 </div>

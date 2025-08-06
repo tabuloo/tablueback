@@ -80,8 +80,7 @@ const ContactUs: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">Phone</h3>
-                    <p className="text-gray-700">+91 98765 43210</p>
-                    <p className="text-gray-700">+91 98765 43211</p>
+                    <p className="text-gray-700">+91 91009 33477</p>
                   </div>
                 </div>
 
@@ -93,9 +92,10 @@ const ContactUs: React.FC = () => {
                     <h3 className="font-semibold text-gray-900">Office Address</h3>
                     <p className="text-gray-700">
                       Tabuloo Technologies Pvt. Ltd.<br />
-                      123, Tech Park, Whitefield<br />
-                      Bangalore - 560066<br />
-                      Karnataka, India
+                      6-237-98-79, Devalam Extation<br />
+                      Madanapalle, Madanapalle<br />
+                      Chittoor- 517325<br />
+                      Andhra Pradesh, India
                     </p>
                   </div>
                 </div>

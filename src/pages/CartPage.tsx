@@ -3,9 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart } from 'lucide-react';
+import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, MapPin, User, Phone, Home, CreditCard, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 import paymentService from '../services/paymentService';
+import GoogleMapPicker from '../components/GoogleMapPicker';
+
+interface Location {
+  lat: number;
+  lng: number;
+  address: string;
+  formattedAddress: string;
+}
 
 const CartPage: React.FC = () => {
   const navigate = useNavigate();
@@ -15,7 +23,10 @@ const CartPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [customerName, setCustomerName] = useState(user?.name || '');
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'razorpay'>('cod');
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [showMap, setShowMap] = useState(false);
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -25,9 +36,19 @@ const CartPage: React.FC = () => {
     }
   };
 
+  const handleLocationSelect = (location: Location) => {
+    setSelectedLocation(location);
+    setDeliveryAddress(location.formattedAddress);
+  };
+
   const handleCheckout = async () => {
     if (!user) {
       toast.error('Please login to checkout');
+      return;
+    }
+
+    if (!customerName.trim()) {
+      toast.error('Please enter your name');
       return;
     }
 
@@ -62,10 +83,14 @@ const CartPage: React.FC = () => {
         type: 'delivery' as const,
         total: getTotalPrice(),
         address: deliveryAddress,
-        customerName: user.name,
+        customerName: customerName,
         customerPhone: phoneNumber,
         createdAt: new Date(),
-        paymentMethod: (paymentMethod === 'cod' ? 'cod' : 'card') as 'cod' | 'card' | 'wallet' | 'netbanking' | 'upi'
+        paymentMethod: (paymentMethod === 'cod' ? 'cod' : 'card') as 'cod' | 'card' | 'wallet' | 'netbanking' | 'upi',
+        location: selectedLocation ? {
+          lat: selectedLocation.lat,
+          lng: selectedLocation.lng
+        } : null
       };
 
       if (paymentMethod === 'cod') {
@@ -156,135 +181,210 @@ const CartPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-6">
           {/* Cart Items */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm">
-              <div className="p-6 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">Order Items</h2>
-              </div>
-              <div className="divide-y">
-                {items.map((item) => (
-                  <div key={item.id} className="p-6 flex items-center space-x-4">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-16 h-16 object-cover rounded-lg"
-                      onError={(e) => {
-                        e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0zMiAyMEMyNC4yNjgxIDIwIDE4IDI2LjI2ODEgMTggMzRDMjAgMzQgMjIgMzUuMzQzMSAyMiAzOEMyMiA0MC42NTY5IDIwLjY1NjkgNDIgMTggNDJIMTZDMjQuMjY4MSA0MiAzMiAzNC4yNjgxIDMyIDI2VjIwWiIgZmlsbD0iI0QxRDVEM0EiLz4KPC9zdmc+';
-                      }}
-                    />
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{item.name}</h3>
-                      <p className="text-sm text-gray-600">{item.restaurantName}</p>
-                      <p className="text-sm text-gray-500">{item.itemCategory}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                        className="p-1 rounded-full hover:bg-gray-100"
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="w-8 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                        className="p-1 rounded-full hover:bg-gray-100"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-gray-900">₹{item.price * item.quantity}</p>
-                      <p className="text-sm text-gray-600">₹{item.price} each</p>
-                    </div>
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Order Items ({items.length})</h2>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {items.map((item) => (
+                <div key={item.id} className="p-6 flex items-center space-x-4">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-20 h-20 object-cover rounded-lg"
+                    onError={(e) => {
+                      e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0zMiAyMEMyNC4yNjgxIDIwIDE4IDI2LjI2ODEgMTggMzRDMjAgMzQgMjIgMzUuMzQzMSAyMiAzOEMyMiA0MC42NTY5IDIwLjY1NjkgNDIgMTggNDJIMTZDMjQuMjY4MSA0MiAzMiAzNC4yNjgxIDMyIDI2VjIwWiIgZmlsbD0iI0QxRDVEM0EiLz4KPC9zdmc+';
+                    }}
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900 text-lg">{item.name}</h3>
+                    <p className="text-sm text-gray-600">{item.restaurantName}</p>
+                    <p className="text-sm text-gray-500">{item.itemCategory}</p>
+                  </div>
+                  <div className="flex items-center space-x-3">
                     <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="text-red-600 hover:text-red-800 p-1"
+                      onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <span className="w-12 text-center font-medium text-lg">{item.quantity}</span>
+                    <button
+                      onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
                     </button>
                   </div>
-                ))}
-              </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900 text-lg">₹{item.price * item.quantity}</p>
+                    <p className="text-sm text-gray-600">₹{item.price} each</p>
+                  </div>
+                  <button
+                    onClick={() => removeFromCart(item.id)}
+                    className="text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
-              
-              {/* Delivery Details */}
-              <div className="mb-6">
-                <h3 className="font-medium text-gray-900 mb-3">Delivery Details</h3>
-                <div className="space-y-3">
+          {/* Delivery Details */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Home className="h-5 w-5 mr-2 text-red-600" />
+                Delivery Details
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Customer Information */}
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Delivery Address
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <User className="h-4 w-4 mr-2" />
+                      Full Name
                     </label>
-                    <textarea
-                      value={deliveryAddress}
-                      onChange={(e) => setDeliveryAddress(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                      rows={3}
-                      placeholder="Enter your delivery address"
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      placeholder="Enter your full name"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <Phone className="h-4 w-4 mr-2" />
                       Phone Number
                     </label>
                     <input
                       type="tel"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                       placeholder="Enter your phone number"
                     />
                   </div>
                 </div>
-              </div>
 
-              {/* Payment Method */}
-              <div className="mb-6">
-                <h3 className="font-medium text-gray-900 mb-3">Payment Method</h3>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      value="cod"
-                      checked={paymentMethod === 'cod'}
-                      onChange={(e) => setPaymentMethod(e.target.value as 'cod' | 'razorpay')}
-                      className="mr-2"
+                {/* Address Section */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <MapPin className="h-4 w-4 mr-2" />
+                      Delivery Address
+                    </label>
+                    <textarea
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      rows={3}
+                      placeholder="Enter your delivery address"
                     />
-                    <span className="text-sm">Cash on Delivery</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      value="razorpay"
-                      checked={paymentMethod === 'razorpay'}
-                      onChange={(e) => setPaymentMethod(e.target.value as 'cod' | 'razorpay')}
-                      className="mr-2"
-                    />
-                    <span className="text-sm">Pay Online (Razorpay)</span>
-                  </label>
+                  </div>
+
+                  <button
+                    onClick={() => setShowMap(!showMap)}
+                    className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                  >
+                    <MapPin className="h-4 w-4 mr-2" />
+                    {showMap ? 'Hide Map' : 'Show Map & Pick Location'}
+                  </button>
                 </div>
               </div>
 
-              {/* Price Breakdown */}
-              <div className="border-t pt-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span>₹{getTotalPrice()}</span>
+              {/* Google Map */}
+              {showMap && (
+                <div className="mt-6 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <GoogleMapPicker
+                    onLocationSelect={handleLocationSelect}
+                    placeholder="Search for your delivery address..."
+                  />
+                </div>
+              )}
+
+              {/* Selected Location Display */}
+              {selectedLocation && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-start">
+                    <MapPin className="h-5 w-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-green-900">📍 Selected Location:</p>
+                      <p className="text-sm text-green-800 mt-1">{selectedLocation.formattedAddress}</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Delivery Fee</span>
-                    <span>₹40</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Payment Method */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Payment Method</h2>
+            </div>
+            <div className="p-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg hover:border-red-300 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    value="cod"
+                    checked={paymentMethod === 'cod'}
+                    onChange={(e) => setPaymentMethod(e.target.value as 'cod' | 'razorpay')}
+                    className="mr-3"
+                  />
+                  <div className="flex items-center">
+                    <DollarSign className="h-5 w-5 text-green-600 mr-3" />
+                    <div>
+                      <span className="font-medium">Cash on Delivery</span>
+                      <p className="text-sm text-gray-600">Pay when you receive your order</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between font-semibold text-lg">
+                </label>
+                <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg hover:border-red-300 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    value="razorpay"
+                    checked={paymentMethod === 'razorpay'}
+                    onChange={(e) => setPaymentMethod(e.target.value as 'cod' | 'razorpay')}
+                    className="mr-3"
+                  />
+                  <div className="flex items-center">
+                    <CreditCard className="h-5 w-5 text-blue-600 mr-3" />
+                    <div>
+                      <span className="font-medium">Pay Online</span>
+                      <p className="text-sm text-gray-600">Secure payment via Razorpay</p>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Order Summary */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span className="font-medium">₹{getTotalPrice()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Delivery Fee</span>
+                  <span className="font-medium">₹40</span>
+                </div>
+                <div className="border-t pt-3">
+                  <div className="flex justify-between font-semibold text-xl">
                     <span>Total</span>
                     <span>₹{getTotalPrice() + 40}</span>
                   </div>
@@ -295,7 +395,7 @@ const CartPage: React.FC = () => {
               <button
                 onClick={handleCheckout}
                 disabled={isProcessing}
-                className="w-full bg-red-800 text-white py-3 rounded-lg font-medium hover:bg-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+                className="w-full bg-red-800 text-white py-4 rounded-lg font-semibold text-lg hover:bg-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
               >
                 {isProcessing ? 'Processing...' : `Place Order (₹${getTotalPrice() + 40})`}
               </button>

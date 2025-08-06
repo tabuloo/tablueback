@@ -1,0 +1,26 @@
+{
+  "name": "tabuloo-payment-server",
+  "version": "1.0.0",
+  "description": "Payment server for Tabuloo application",
+  "main": "simple-payment-server.js",
+  "scripts": {
+    "start": "node simple-payment-server.js",
+    "dev": "nodemon simple-payment-server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["payment", "razorpay", "tabuloo"],
+  "author": "Tabuloo Team",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "razorpay": "^2.8.6",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+} 
