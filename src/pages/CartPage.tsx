@@ -7,6 +7,7 @@ import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, MapPin, User, Phone, Home
 import toast from 'react-hot-toast';
 import paymentService from '../services/paymentService';
 import GoogleMapPicker from '../components/GoogleMapPicker';
+import { validateIndianPhoneNumber, formatPhoneNumber } from '../utils/validation';
 
 interface Location {
   lat: number;
@@ -57,8 +58,18 @@ const CartPage: React.FC = () => {
       return;
     }
 
+    if (deliveryAddress.trim().length < 10) {
+      toast.error('Please enter a complete delivery address (minimum 10 characters)');
+      return;
+    }
+
     if (!phoneNumber.trim()) {
       toast.error('Please enter phone number');
+      return;
+    }
+
+    if (!validateIndianPhoneNumber(phoneNumber)) {
+      toast.error('Please enter a valid 10-digit Indian phone number');
       return;
     }
 
@@ -267,10 +278,17 @@ const CartPage: React.FC = () => {
                     <input
                       type="tel"
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      onChange={(e) => {
+                        const formatted = formatPhoneNumber(e.target.value);
+                        setPhoneNumber(formatted);
+                      }}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                      placeholder="Enter your phone number"
+                      placeholder="Enter 10-digit phone number"
+                      maxLength={10}
                     />
+                    {phoneNumber && !validateIndianPhoneNumber(phoneNumber) && (
+                      <p className="text-red-500 text-sm mt-1">Please enter a valid 10-digit Indian phone number</p>
+                    )}
                   </div>
                 </div>
 

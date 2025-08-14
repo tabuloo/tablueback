@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { LogIn, Phone, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { validateIndianPhoneNumber, formatPhoneNumber } from '../../utils/validation';
 
@@ -12,20 +12,71 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLoginSuccess }) => {
   const { login } = useAuth();
-  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     phone: '',
-    password: ''
+    otp: ''
   });
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // OTP timer countdown
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
+  const generateOTP = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  const sendOTP = async () => {
+    if (!formData.phone.trim()) {
+      toast.error('Please enter your phone number first');
+      return;
+    }
+
+    if (!validateIndianPhoneNumber(formData.phone)) {
+      toast.error('Please enter a valid 10-digit Indian phone number');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // Generate OTP (in real app, this would be sent via SMS)
+      const otp = generateOTP();
+      
+      // Store OTP in localStorage for demo purposes
+      // In production, this should be handled server-side
+      localStorage.setItem(`otp_${formData.phone}`, otp);
+      
+      // Set timer for 60 seconds
+      setOtpTimer(60);
+      setOtpSent(true);
+      
+      toast.success(`OTP sent to ${formData.phone}: ${otp}`);
+      console.log(`OTP for ${formData.phone}: ${otp}`);
+      
+    } catch (error) {
+      toast.error('Failed to send OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form data
     if (role === 'public_user') {
-      if (!formData.phone.trim() || !formData.password.trim()) {
-        toast.error('Phone number and password are required');
+      if (!formData.phone.trim() || !formData.otp.trim()) {
+        toast.error('Phone number and OTP are required');
         return;
       }
       
@@ -33,9 +84,25 @@ const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLogin
         toast.error('Please enter a valid 10-digit Indian phone number');
         return;
       }
+
+      if (formData.otp.length !== 6) {
+        toast.error('Please enter a valid 6-digit OTP');
+        return;
+      }
+
+      // Verify OTP
+      const storedOtp = localStorage.getItem(`otp_${formData.phone}`);
+      if (!storedOtp || storedOtp !== formData.otp) {
+        toast.error('Invalid OTP. Please try again.');
+        return;
+      }
+
+      // Clear OTP from localStorage
+      localStorage.removeItem(`otp_${formData.phone}`);
+      
     } else {
-      if (!formData.username.trim() || !formData.password.trim()) {
-        toast.error('Username and password are required');
+      if (!formData.username.trim() || !formData.otp.trim()) {
+        toast.error('Username and OTP are required');
         return;
       }
     }
@@ -66,7 +133,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLogin
     <div className="bg-white p-8 rounded-2xl w-full">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">{getRoleTitle()}</h2>
-        <p className="text-gray-600 mt-2">Enter your credentials to continue</p>
+        <p className="text-gray-600 mt-2">Enter your phone number and OTP to continue</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -87,11 +154,68 @@ const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLogin
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Enter 10-digit phone number"
                 maxLength={10}
+                disabled={otpSent}
               />
               {formData.phone && !validateIndianPhoneNumber(formData.phone) && (
                 <p className="text-red-500 text-sm mt-1">Please enter a valid 10-digit Indian phone number</p>
               )}
             </div>
+
+            {!otpSent ? (
+              <button
+                type="button"
+                onClick={sendOTP}
+                disabled={isLoading || !formData.phone.trim() || !validateIndianPhoneNumber(formData.phone)}
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-2 px-4 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Phone className="h-4 w-4" />
+                <span>{isLoading ? 'Sending...' : 'Send OTP'}</span>
+              </button>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  OTP
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.otp}
+                  onChange={(e) => setFormData(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center text-lg tracking-widest"
+                  placeholder="Enter 6-digit OTP"
+                  maxLength={6}
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-sm text-gray-500">
+                    {otpTimer > 0 ? (
+                      <span className="flex items-center text-orange-600">
+                        <Clock className="h-4 w-4 mr-1" />
+                        Resend in {otpTimer}s
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={sendOTP}
+                        className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                      >
+                        Resend OTP
+                      </button>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setFormData(prev => ({ ...prev, otp: '' }));
+                      setOtpTimer(0);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 text-sm"
+                  >
+                    Change Number
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -105,74 +229,77 @@ const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLogin
                 value={formData.username}
                 onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                //placeholder={role === 'admin' ? 'admin@tabuloo.com or 9985121257' : 'Enter username'}
+                placeholder="Enter username or email"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  //placeholder={role === 'admin' ? 'Admin@123' : 'Enter password'}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4 text-gray-400" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-gray-400" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-        
-        {role === 'public_user' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={formData.password}
-                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="Enter your password"
-              />
+
+            {!otpSent ? (
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                onClick={sendOTP}
+                disabled={isLoading || !formData.username.trim()}
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-2 px-4 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4 text-gray-400" />
-                ) : (
-                  <Eye className="h-4 w-4 text-gray-400" />
-                )}
+                <Phone className="h-4 w-4" />
+                <span>{isLoading ? 'Sending...' : 'Send OTP'}</span>
               </button>
-            </div>
-          </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  OTP
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.otp}
+                  onChange={(e) => setFormData(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center text-lg tracking-widest"
+                  placeholder="Enter 6-digit OTP"
+                  maxLength={6}
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-sm text-gray-500">
+                    {otpTimer > 0 ? (
+                      <span className="flex items-center text-orange-600">
+                        <Clock className="h-4 w-4 mr-1" />
+                        Resend in {otpTimer}s
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={sendOTP}
+                        className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                      >
+                        Resend OTP
+                      </button>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setFormData(prev => ({ ...prev, otp: '' }));
+                      setOtpTimer(0);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 text-sm"
+                  >
+                    Change Username
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
-        <button
-          type="submit"
-          className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 px-4 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all flex items-center justify-center space-x-2"
-        >
-          <LogIn className="h-4 w-4" />
-          <span>Login</span>
-        </button>
+        {otpSent && (
+          <button
+            type="submit"
+            className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 px-4 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all flex items-center justify-center space-x-2"
+          >
+            <LogIn className="h-4 w-4" />
+            <span>Login</span>
+          </button>
+        )}
 
         {role === 'public_user' && onSwitchToRegister && (
           <div className="text-center pt-4">

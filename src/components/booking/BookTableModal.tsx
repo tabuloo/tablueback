@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { X, Calendar, Clock, Users, CreditCard, Plus, Trash2, Wallet, Building, Smartphone, Banknote, Truck } from 'lucide-react';
+import { X, Calendar, Clock, Users, CreditCard, Plus, Trash2, Wallet, Building, Smartphone, Banknote, Truck, Utensils } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { validateIndianPhoneNumber, formatPhoneNumber, validateCardNumber, formatCardNumber, validateCVV, formatCVV, validateExpiryDate, formatExpiryDate } from '../../utils/validation';
 
@@ -13,9 +13,9 @@ interface BookTableModalProps {
 
 const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, selectedRestaurantId }) => {
   const { user, updateWalletBalance } = useAuth();
-  const { restaurants, addBooking } = useApp();
+  const { restaurants, menuItems, addBooking } = useApp();
   const [step, setStep] = useState<'details' | 'payment' | 'confirmation'>('details');
-  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'netbanking' | 'card' | 'upi' | 'cod'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'netbanking' | 'card' | 'upi'>('card');
   const [cardDetails, setCardDetails] = useState({
     number: '',
     expiry: '',
@@ -32,16 +32,37 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
     specialRequests: '',
     foodOptions: ''
   });
+  
+    // New state for menu selection
+  const [selectedMenuItems, setSelectedMenuItems] = useState<{[key: string]: number}>({});
 
   const paymentMethods = [
     { id: 'wallet', name: 'Tabuloo Wallet', icon: Wallet, description: `Balance: ₹${(user?.walletBalance || 0).toFixed(2)}` },
     { id: 'netbanking', name: 'Net Banking', icon: Building, description: 'All major banks supported' },
     { id: 'card', name: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard, Amex' },
-    { id: 'upi', name: 'UPI', icon: Smartphone, description: 'Pay using UPI apps' },
-    { id: 'cod', name: 'Cash on Delivery', icon: Banknote, description: 'Pay when you arrive' }
+    { id: 'upi', name: 'UPI', icon: Smartphone, description: 'Pay using UPI apps' }
   ];
 
   const selectedRestaurant = restaurants.find(r => r.id === formData.restaurantId);
+  
+    // Get menu items for the selected restaurant
+  const restaurantMenuItems = menuItems.filter(item => 
+    item.restaurantId === formData.restaurantId && item.available
+  );
+
+  // Calculate total menu cost based on selected items
+  const getTotalMenuCost = () => {
+    return Object.entries(selectedMenuItems).reduce((total, [itemId, quantity]) => {
+      const menuItem = restaurantMenuItems.find(item => item.id === itemId);
+      return total + (menuItem ? menuItem.price * quantity : 0);
+    }, 0);
+  };
+
+  // Calculate booking price (20% of total menu cost)
+  const getBookingPrice = () => {
+    const totalMenuCost = getTotalMenuCost();
+    return totalMenuCost * 0.2;
+  };
 
   const handleCustomerCountChange = (count: string) => {
     const numCount = parseInt(count) || 1;
@@ -73,6 +94,20 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
     }
   };
 
+  // Handle menu item selection
+  const handleMenuItemChange = (itemId: string, quantity: number) => {
+    if (quantity <= 0) {
+      const newSelectedItems = { ...selectedMenuItems };
+      delete newSelectedItems[itemId];
+      setSelectedMenuItems(newSelectedItems);
+    } else {
+      setSelectedMenuItems(prev => ({
+        ...prev,
+        [itemId]: quantity
+      }));
+    }
+  };
+
   const validateForm = () => {
     if (!selectedRestaurant) {
       toast.error('Please select a restaurant');
@@ -95,19 +130,33 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
     }
 
     const customerCount = parseInt(formData.customers);
-    if (customerCount > 2) {
-      // Only first customer name is required for groups > 2
+    
+    // Validation logic for customer names
+    if (customerCount === 1) {
+      // For 1 person: only first name required
       if (!formData.customerNames[0]?.trim()) {
-        toast.error('At least one customer name is required');
+        toast.error('Please provide the customer name');
         return false;
       }
-    } else {
-      // All names required for groups <= 2
+    } else if (customerCount === 2 || customerCount === 3) {
+      // For 2-3 people: all names required
       const filledNames = formData.customerNames.filter(name => name.trim() !== '');
       if (filledNames.length !== customerCount) {
         toast.error('Please provide names for all customers');
         return false;
       }
+    } else if (customerCount > 3) {
+      // For 4+ people: first 2 names mandatory, 3rd optional
+      if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
+        toast.error('Please provide names for at least the first two customers');
+        return false;
+      }
+    }
+
+    // Check if at least one menu item is selected
+    if (Object.keys(selectedMenuItems).length === 0) {
+      toast.error('Please select at least one menu item');
+      return false;
     }
 
     return true;
@@ -144,8 +193,8 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
       }
     }
 
-    const totalAmount = selectedRestaurant.price * parseInt(formData.customers);
-    const advanceAmount = totalAmount * 0.2; // 20% advance
+    const totalMenuCost = getTotalMenuCost();
+    const advanceAmount = getBookingPrice(); // 20% of total menu cost
 
     // Handle wallet payment
     if (paymentMethod === 'wallet') {
@@ -171,7 +220,8 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
       createdAt: new Date(),
       specialRequests: formData.specialRequests,
       foodOptions: formData.foodOptions,
-      paymentMethod: paymentMethod
+      paymentMethod: paymentMethod,
+      selectedMenuItems: selectedMenuItems // Add selected menu items to booking
     };
 
     try {
@@ -218,18 +268,77 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
               </label>
               <select
                 value={formData.restaurantId}
-                onChange={(e) => setFormData(prev => ({ ...prev, restaurantId: e.target.value }))}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, restaurantId: e.target.value }));
+                  setSelectedMenuItems({}); // Clear selected menu items when restaurant changes
+                }}
                 className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
                 required
               >
                 <option value="">Select a restaurant</option>
                 {restaurants.filter(r => r.isOpen).map((restaurant) => (
                   <option key={restaurant.id} value={restaurant.id}>
-                    {restaurant.name} - ₹{restaurant.price}/person
+                    {restaurant.name}
                   </option>
                 ))}
               </select>
             </div>
+
+            {/* Menu Selection Section */}
+            {selectedRestaurant && restaurantMenuItems.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Utensils className="h-4 w-4 inline mr-1" />
+                  Select Menu Items *
+                </label>
+                <div className="bg-gray-50 p-4 rounded-lg max-h-64 overflow-y-auto">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Choose the food items you'd like to eat when you arrive. The booking price will be 20% of your total selection.
+                  </p>
+                  <div className="space-y-3">
+                    {restaurantMenuItems.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <span className={`w-3 h-3 rounded-full ${item.category === 'veg' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                            <h4 className="font-medium text-gray-900">{item.name}</h4>
+                          </div>
+                          <p className="text-sm text-gray-600">{item.itemCategory} • {item.quantity}</p>
+                          <p className="text-sm font-medium text-red-800">₹{item.price}</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => handleMenuItemChange(item.id, (selectedMenuItems[item.id] || 0) - 1)}
+                            className="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center"
+                          >
+                            <span className="text-lg font-bold">-</span>
+                          </button>
+                          <span className="w-8 text-center font-medium">
+                            {selectedMenuItems[item.id] || 0}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleMenuItemChange(item.id, (selectedMenuItems[item.id] || 0) + 1)}
+                            className="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center"
+                          >
+                            <span className="text-lg font-bold">+</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {Object.keys(selectedMenuItems).length > 0 && (
+                  <div className="mt-3 text-sm text-gray-600">
+                    <p>Selected items: {Object.values(selectedMenuItems).reduce((sum, qty) => sum + qty, 0)}</p>
+                    <p className="font-medium text-red-800">
+                      Total menu cost: ₹{getTotalMenuCost().toFixed(2)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -282,44 +391,86 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-medium text-gray-700">
                   Name of the Customers
-                  {parseInt(formData.customers) > 2 && (
+                  {parseInt(formData.customers) === 1 && (
                     <span className="text-xs sm:text-sm text-gray-500 ml-1">
-                      (First name required, others optional)
+                      (Required)
+                    </span>
+                  )}
+                  {parseInt(formData.customers) === 2 && (
+                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                      (Both required)
+                    </span>
+                  )}
+                  {parseInt(formData.customers) === 3 && (
+                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                      (All three required)
+                    </span>
+                  )}
+                  {parseInt(formData.customers) > 3 && (
+                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                      (First 2 required, 3rd optional)
                     </span>
                   )}
                 </label>
-                <button
-                  type="button"
-                  onClick={addCustomerField}
-                  className="flex items-center space-x-1 text-red-800 hover:text-red-900 text-sm"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Customer</span>
-                </button>
+                {parseInt(formData.customers) <= 3 && (
+                  <button
+                    type="button"
+                    onClick={addCustomerField}
+                    className="flex items-center space-x-1 text-red-800 hover:text-red-900 text-sm"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Customer</span>
+                  </button>
+                )}
               </div>
               
               <div className="space-y-3 max-h-48 sm:max-h-60 overflow-y-auto">
-                {formData.customerNames.map((name, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      placeholder={`Customer ${index + 1} name${index === 0 && parseInt(formData.customers) > 2 ? ' (required)' : ''}`}
-                      value={name}
-                      onChange={(e) => handleNameChange(index, e.target.value)}
-                      className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
-                      required={parseInt(formData.customers) <= 2 || index === 0}
-                    />
-                    {formData.customerNames.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeCustomerField(index)}
-                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {formData.customerNames.map((name, index) => {
+                  const customerCount = parseInt(formData.customers);
+                  let isRequired = false;
+                  let placeholder = '';
+                  
+                  if (customerCount === 1) {
+                    isRequired = index === 0;
+                    placeholder = 'Customer name (required)';
+                  } else if (customerCount === 2 || customerCount === 3) {
+                    isRequired = true;
+                    placeholder = `Customer ${index + 1} name (required)`;
+                  } else if (customerCount > 3) {
+                    if (index === 0 || index === 1) {
+                      isRequired = true;
+                      placeholder = `Customer ${index + 1} name (required)`;
+                    } else if (index === 2) {
+                      isRequired = false;
+                      placeholder = `Customer ${index + 1} name (optional)`;
+                    } else {
+                      isRequired = false;
+                      placeholder = `Customer ${index + 1} name`;
+                    }
+                  }
+                  
+                  return (
+                    <div key={index} className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        placeholder={placeholder}
+                        value={name}
+                        onChange={(e) => handleNameChange(index, e.target.value)}
+                        className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                        required={isRequired}
+                      />
+                      {formData.customerNames.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeCustomerField(index)}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -353,7 +504,7 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
                 onChange={(e) => setFormData(prev => ({ ...prev, foodOptions: e.target.value }))}
                 className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
                 rows={3}
-                placeholder="Any specific food preferences, dietary restrictions, or menu requests..."
+                placeholder="Any specific food preferences, dietary restrictions, or additional menu requests..."
               />
             </div>
 
@@ -370,16 +521,17 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
               />
             </div>
 
-            {selectedRestaurant && parseInt(formData.customers) > 0 && (
+            {selectedRestaurant && Object.keys(selectedMenuItems).length > 0 && (
               <div className="bg-red-50 p-4 rounded-lg">
                 <h3 className="font-medium text-gray-900 mb-2">Booking Summary</h3>
                 <div className="text-sm text-gray-600 space-y-1">
                   <p>Restaurant: {selectedRestaurant.name}</p>
                   <p>Date: {formData.date} at {formData.time}</p>
                   <p>Customers: {formData.customers}</p>
-                  <p>Total Amount: ₹{(selectedRestaurant.price * parseInt(formData.customers)).toFixed(2)}</p>
+                  <p>Selected Items: {Object.values(selectedMenuItems).reduce((sum, qty) => sum + qty, 0)}</p>
+                  <p>Total Menu Cost: ₹{getTotalMenuCost().toFixed(2)}</p>
                   <p className="font-medium text-red-600">
-                    Advance Payment (20%): ₹{(selectedRestaurant.price * parseInt(formData.customers) * 0.2).toFixed(2)}
+                    Advance Payment (20%): ₹{getBookingPrice().toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -400,7 +552,7 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
               <CreditCard className="h-10 w-10 sm:h-12 sm:w-12 text-red-800 mx-auto mb-4" />
               <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Payment Details</h3>
               <p className="text-sm sm:text-base text-gray-600">
-                Advance payment of ₹{(selectedRestaurant.price * parseInt(formData.customers) * 0.2).toFixed(2)} required
+                Advance payment of ₹{getBookingPrice().toFixed(2)} required
               </p>
             </div>
 
@@ -410,7 +562,7 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
               <div className="space-y-3">
                 {paymentMethods.map((method) => {
                   const Icon = method.icon;
-                  const isWalletInsufficient = method.id === 'wallet' && (user?.walletBalance || 0) < (selectedRestaurant.price * parseInt(formData.customers) * 0.2);
+                  const isWalletInsufficient = method.id === 'wallet' && (user?.walletBalance || 0) < getBookingPrice();
                   
                   return (
                     <button
@@ -450,9 +602,10 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
                 <p>Date & Time: {formData.date} at {formData.time}</p>
                 <p>Customers: {formData.customers}</p>
                 <p>Phone: {formData.phone}</p>
-               <p>Total: ₹{(selectedRestaurant.price * parseInt(formData.customers)).toFixed(2)}</p>
+                <p>Selected Items: {Object.values(selectedMenuItems).reduce((sum, qty) => sum + qty, 0)}</p>
+                <p>Total Menu Cost: ₹{getTotalMenuCost().toFixed(2)}</p>
                 <p className="font-medium text-red-600">
-                 Advance: ₹{(selectedRestaurant.price * parseInt(formData.customers) * 0.2).toFixed(2)}
+                  Advance (20%): ₹{getBookingPrice().toFixed(2)}
                 </p>
               </div>
             </div>
@@ -550,26 +703,14 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
                   <div>
                     <p className="font-medium text-green-900 text-sm sm:text-base">Payment via Tabuloo Wallet</p>
                     <p className="text-xs sm:text-sm text-green-700">
-                      ₹{(selectedRestaurant.price * parseInt(formData.customers) * 0.2).toFixed(2)} will be deducted from your wallet
+                      ₹{getBookingPrice().toFixed(2)} will be deducted from your wallet
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            {paymentMethod === 'cod' && (
-              <div className="bg-orange-50 p-4 rounded-lg mb-6">
-                <div className="flex items-center">
-                  <Banknote className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600 mr-3" />
-                  <div>
-                    <p className="font-medium text-orange-900 text-sm sm:text-base">Cash on Arrival</p>
-                    <p className="text-xs sm:text-sm text-orange-700">
-                      Pay ₹{(selectedRestaurant.price * parseInt(formData.customers) * 0.2).toFixed(2)} when you arrive at the restaurant
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+
 
             <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
               <button
@@ -582,7 +723,7 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
                 onClick={handlePayment}
                 className="flex-1 bg-gradient-to-r from-red-800 to-red-900 text-white py-3 px-4 rounded-lg hover:from-red-900 hover:to-red-950 font-medium text-base"
               >
-                Pay ₹{(selectedRestaurant.price * parseInt(formData.customers || '0') * 0.2).toFixed(2)}
+                Pay ₹{getBookingPrice().toFixed(2)}
               </button>
             </div>
           </div>
@@ -605,7 +746,9 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
                 <p>Date & Time: {formData.date} at {formData.time}</p>
                 <p>Customers: {formData.customers}</p>
                 <p>Phone: {formData.phone}</p>
-                <p>Advance Paid: ₹{(selectedRestaurant.price * parseInt(formData.customers) * 0.2).toFixed(2)}</p>
+                <p>Selected Items: {Object.values(selectedMenuItems).reduce((sum, qty) => sum + qty, 0)}</p>
+                <p>Total Menu Cost: ₹{getTotalMenuCost().toFixed(2)}</p>
+                <p>Advance Paid: ₹{getBookingPrice().toFixed(2)}</p>
               </div>
             </div>
 

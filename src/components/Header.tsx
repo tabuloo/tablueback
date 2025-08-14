@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { MapPin, Menu, X, User, LogOut, Shield, Store, Calendar, ShoppingCart, PartyPopper } from 'lucide-react';
+import { MapPin, Menu, X, User, LogOut, Shield, Store, Calendar, ShoppingCart, PartyPopper, Truck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useCart } from '../contexts/CartContext';
 import AuthModal from './auth/AuthModal';
+import DeliveryBoyAuthModal from './auth/DeliveryBoyAuthModal';
 import CartIcon from './CartIcon';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -19,6 +20,7 @@ const Header: React.FC = () => {
   const [showOrderFood, setShowOrderFood] = useState(false);
   const [showEventBooking, setShowEventBooking] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showDeliveryBoyAuth, setShowDeliveryBoyAuth] = useState(false);
   const [authType, setAuthType] = useState<'admin' | 'restaurant_owner' | 'public_user'>('public_user');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -112,31 +114,38 @@ const Header: React.FC = () => {
               
               {/* Auth Buttons */}
               {!user ? (
-                <div className="hidden md:flex items-center space-x-4">
-                  {/* Auth Buttons */}
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleAuthClick('admin')}
-                      className="p-2 text-gray-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
-                      title="Admin Login"
-                    >
-                      <Shield className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleAuthClick('restaurant_owner')}
-                      className="p-2 text-gray-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
-                      title="Restaurant Owner Login"
-                    >
-                      <Store className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleAuthClick('public_user')}
-                      className="bg-gradient-to-r from-red-800 to-red-900 text-white px-6 py-2 rounded-full hover:from-red-900 hover:to-red-950 transition-all font-medium"
-                    >
-                      Sign In
-                    </button>
+                                  <div className="hidden md:flex items-center space-x-4">
+                    {/* Auth Buttons */}
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setShowDeliveryBoyAuth(true)}
+                        className="p-2 text-gray-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                        title="Delivery Boy Login"
+                      >
+                        <Truck className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleAuthClick('admin')}
+                        className="p-2 text-gray-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                        title="Admin Login"
+                      >
+                        <Shield className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleAuthClick('restaurant_owner')}
+                        className="p-2 text-gray-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                        title="Restaurant Owner Login"
+                      >
+                        <Store className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleAuthClick('public_user')}
+                        className="bg-gradient-to-r from-red-800 to-red-900 text-white px-6 py-2 rounded-full hover:from-red-900 hover:to-red-950 transition-all font-medium"
+                      >
+                        Sign In
+                      </button>
+                    </div>
                   </div>
-                </div>
               ) : (
                 <div className="hidden md:flex items-center space-x-4">
                   {user.role === 'public_user' && (
@@ -161,9 +170,6 @@ const Header: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-gray-700 font-medium">
                       {user.name}
-                    </span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                      {user.role.replace('_', ' ')}
                     </span>
                   </div>
                   
@@ -217,7 +223,17 @@ const Header: React.FC = () => {
                 {!user ? (
                   <div className="space-y-2">
                     <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Account</h3>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          setShowDeliveryBoyAuth(true);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="p-3 text-center rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 transition-colors"
+                      >
+                        <Truck className="h-6 w-6 mx-auto mb-1 text-gray-600" />
+                        <span className="text-xs text-gray-600">Delivery</span>
+                      </button>
                       <button
                         onClick={() => {
                           handleAuthClick('admin');
@@ -228,6 +244,8 @@ const Header: React.FC = () => {
                         <Shield className="h-6 w-6 mx-auto mb-1 text-gray-600" />
                         <span className="text-xs text-gray-600">Admin</span>
                       </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => {
                           handleAuthClick('restaurant_owner');
@@ -337,6 +355,14 @@ const Header: React.FC = () => {
               isOpen={showAuthModal}
               onClose={() => setShowAuthModal(false)}
               authType={authType}
+            />
+          )}
+
+          {/* Delivery Boy Auth Modal */}
+          {showDeliveryBoyAuth && (
+            <DeliveryBoyAuthModal
+              isOpen={showDeliveryBoyAuth}
+              onClose={() => setShowDeliveryBoyAuth(false)}
             />
           )}
         </div>

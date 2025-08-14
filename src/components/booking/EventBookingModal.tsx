@@ -109,17 +109,24 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
       return false;
     }
 
-    if (customerCount > 2) {
-      // Only first customer name is required for groups > 2
+    // Validation logic for customer names
+    if (customerCount === 1) {
+      // For 1 person: only first name required
       if (!formData.customerNames[0]?.trim()) {
-        toast.error('At least one customer name is required');
+        toast.error('Please provide the customer name');
         return false;
       }
-    } else {
-      // All names required for groups <= 2
+    } else if (customerCount === 2 || customerCount === 3) {
+      // For 2-3 people: all names required
       const filledNames = formData.customerNames.filter(name => name.trim() !== '');
       if (filledNames.length !== customerCount) {
         toast.error('Please provide names for all attendees');
+        return false;
+      }
+    } else if (customerCount > 3) {
+      // For 4+ people: first 2 names mandatory, 3rd optional
+      if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
+        toast.error('Please provide names for at least the first two attendees');
         return false;
       }
     }
@@ -362,44 +369,86 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
                 <label className="block text-sm font-medium text-gray-700">
                   <Users className="h-4 w-4 inline mr-1" />
                   Customer Details - Name of the Customers
-                  {parseInt(formData.customers) > 2 && (
+                  {parseInt(formData.customers) === 1 && (
                     <span className="text-xs sm:text-sm text-gray-500 ml-1">
-                      (Primary contact required, others optional)
+                      (Required)
+                    </span>
+                  )}
+                  {parseInt(formData.customers) === 2 && (
+                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                      (Both required)
+                    </span>
+                  )}
+                  {parseInt(formData.customers) === 3 && (
+                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                      (All three required)
+                    </span>
+                  )}
+                  {parseInt(formData.customers) > 3 && (
+                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                      (First 2 required, 3rd optional)
                     </span>
                   )}
                 </label>
-                <button
-                  type="button"
-                  onClick={addCustomerField}
-                  className="flex items-center space-x-1 text-red-800 hover:text-red-900 text-sm"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Attendee</span>
-                </button>
+                {parseInt(formData.customers) <= 3 && (
+                  <button
+                    type="button"
+                    onClick={addCustomerField}
+                    className="flex items-center space-x-1 text-red-800 hover:text-red-900 text-sm"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Attendee</span>
+                  </button>
+                )}
               </div>
               
               <div className="space-y-3 max-h-48 sm:max-h-60 overflow-y-auto">
-                {formData.customerNames.map((name, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      placeholder={`Attendee ${index + 1} name${index === 0 && parseInt(formData.customers) > 2 ? ' (required)' : ''}`}
-                      value={name}
-                      onChange={(e) => handleNameChange(index, e.target.value)}
-                      className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
-                      required={parseInt(formData.customers) <= 2 || index === 0}
-                    />
-                    {formData.customerNames.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeCustomerField(index)}
-                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {formData.customerNames.map((name, index) => {
+                  const customerCount = parseInt(formData.customers);
+                  let isRequired = false;
+                  let placeholder = '';
+                  
+                  if (customerCount === 1) {
+                    isRequired = index === 0;
+                    placeholder = 'Attendee name (required)';
+                  } else if (customerCount === 2 || customerCount === 3) {
+                    isRequired = true;
+                    placeholder = `Attendee ${index + 1} name (required)`;
+                  } else if (customerCount > 3) {
+                    if (index === 0 || index === 1) {
+                      isRequired = true;
+                      placeholder = `Attendee ${index + 1} name (required)`;
+                    } else if (index === 2) {
+                      isRequired = false;
+                      placeholder = `Attendee ${index + 1} name (optional)`;
+                    } else {
+                      isRequired = false;
+                      placeholder = `Attendee ${index + 1} name`;
+                    }
+                  }
+                  
+                  return (
+                    <div key={index} className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        placeholder={placeholder}
+                        value={name}
+                        onChange={(e) => handleNameChange(index, e.target.value)}
+                        className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                        required={isRequired}
+                      />
+                      {formData.customerNames.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeCustomerField(index)}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

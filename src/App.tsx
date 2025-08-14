@@ -12,6 +12,7 @@ import HomePage from './pages/HomePage';
 import CartPage from './pages/CartPage';
 import AdminDashboard from './pages/AdminDashboard';
 import RestaurantOwnerDashboard from './pages/RestaurantOwnerDashboard';
+import DeliveryBoyDashboard from './pages/DeliveryBoyDashboard';
 import UserProfile from './pages/UserProfile';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsConditions from './pages/TermsConditions';
@@ -41,6 +42,8 @@ const AppContent: React.FC = () => {
                 <AdminDashboard />
               ) : user?.role === 'restaurant_owner' ? (
                 <RestaurantOwnerDashboard />
+              ) : user?.role === 'delivery_boy' ? (
+                <DeliveryBoyDashboard />
               ) : (
                 <HomePage />
               )

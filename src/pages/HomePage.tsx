@@ -197,31 +197,29 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* Stats Section - Only show if not logged in */}
-      {!user && (
-        <section className="bg-gradient-to-r from-red-800 to-red-900 text-white py-12 sm:py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
-              {stats.map((stat, index) => {
-                const Icon = stat.icon;
-                return (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className="text-center"
-                  >
-                    <Icon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2" />
-                    <div className="text-2xl sm:text-3xl font-bold">{stat.number}</div>
-                    <div className="text-red-100 text-sm sm:text-base">{stat.label}</div>
-                  </motion.div>
-                );
-              })}
-            </div>
+      {/* Stats Section */}
+      <section className="bg-gradient-to-r from-red-800 to-red-900 text-white py-12 sm:py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
+            {stats.map((stat, index) => {
+              const Icon = stat.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  className="text-center"
+                >
+                  <Icon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2" />
+                  <div className="text-2xl sm:text-3xl font-bold">{stat.number}</div>
+                  <div className="text-red-100 text-sm sm:text-base">{stat.label}</div>
+                </motion.div>
+              );
+            })}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Quick Actions Section */}
@@ -312,10 +310,24 @@ const HomePage: React.FC = () => {
                   </div>
                   <p className="text-gray-600 text-xs sm:text-sm mb-1 capitalize">{restaurant.type}</p>
                   <p className="text-gray-500 text-xs mb-2 line-clamp-2">{restaurant.address}</p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm sm:text-base font-semibold text-red-800">₹{restaurant.price}</span>
-                    <button className="bg-gradient-to-r from-red-800 to-red-900 text-white px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors">
-                      Book
+                  <div className="flex justify-between items-center space-x-2">
+                    <button 
+                      onClick={() => {
+                        setSelectedRestaurant(restaurant.id);
+                        setShowBookTable(true);
+                      }}
+                      className="bg-gradient-to-r from-red-800 to-red-900 text-white px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors flex-1 mr-1"
+                    >
+                      Book Table
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setSelectedRestaurant(restaurant.id);
+                        setShowOrderFood(true);
+                      }}
+                      className="bg-gradient-to-r from-red-800 to-red-900 text-white px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors flex-1"
+                    >
+                      Order Food
                     </button>
                   </div>
                 </div>
@@ -397,139 +409,101 @@ const HomePage: React.FC = () => {
         </section>
       </div>
 
-      {/* Features Section - Only show if not logged in */}
-      {!user && (
-        <section id="features" className="py-8 sm:py-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-6 sm:mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">
-                Everything You Need for Perfect Dining
-              </h2>
-              <p className="text-gray-600 text-sm sm:text-base max-w-2xl mx-auto">
-                From quick bites to special celebrations, we've got you covered with our comprehensive platform
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              {features.map((feature, index) => {
-                const Icon = feature.icon;
-                return (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className="bg-white p-3 sm:p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow group"
-                  >
-                    <div className={`w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r ${feature.color} rounded-lg flex items-center justify-center mb-2 sm:mb-3 group-hover:scale-110 transition-transform`}>
-                      <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                    </div>
-                    <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1">{feature.title}</h3>
-                    <p className="text-xs sm:text-sm text-gray-600">{feature.description}</p>
-                  </motion.div>
-                );
-              })}
-            </div>
+      {/* Features Section */}
+      <section id="features" className="py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">
+              Everything You Need for Perfect Dining
+            </h2>
+            <p className="text-gray-600 text-sm sm:text-base max-w-2xl mx-auto">
+              From quick bites to special celebrations, we've got you covered with our comprehensive platform
+            </p>
           </div>
-        </section>
-      )}
+          
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  className="bg-white p-3 sm:p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow group"
+                >
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r ${feature.color} rounded-lg flex items-center justify-center mb-2 sm:mb-3 group-hover:scale-110 transition-transform`}>
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                  </div>
+                  <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1">{feature.title}</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2">{feature.description}</p>
+                  
+                  {/* Action Buttons */}
+                  {feature.title === 'Table Reservations' && (
+                    <button
+                      onClick={() => setShowBookTable(true)}
+                      disabled={!user}
+                      className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white px-3 py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {user ? 'Book Table' : 'Sign in to Book'}
+                    </button>
+                  )}
+                  
+                  {feature.title === 'Food Delivery' && (
+                    <button
+                      onClick={() => setShowOrderFood(true)}
+                      disabled={!user}
+                      className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white px-3 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {user ? 'Order Food' : 'Sign in to Order'}
+                    </button>
+                  )}
+                  
+                  {feature.title === 'Event Planning' && (
+                    <button
+                      onClick={() => setShowEventBooking(true)}
+                      disabled={!user}
+                      className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white px-3 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {user ? 'Plan Event' : 'Sign in to Plan'}
+                    </button>
+                  )}
+                  
+                  {feature.title === 'Premium Dining' && (
+                    <button
+                      onClick={() => setShowBookTable(true)}
+                      disabled={!user}
+                      className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white px-3 py-2 rounded text-xs sm:text-sm hover:from-red-900 hover:to-red-950 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {user ? 'Book Premium' : 'Sign in to Book'}
+                    </button>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
-      {/* CTA Section - Only show if not logged in */}
-      {!user && (
-        <section className="bg-gradient-to-r from-red-800 to-red-900 text-white py-12 sm:py-20">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-            >
-              <h2 className="text-2xl sm:text-4xl font-bold mb-4 sm:mb-6">
-                Ready to Start Your Culinary Journey?
-              </h2>
-              <p className="text-lg sm:text-xl text-red-100 mb-6 sm:mb-8">
-                Join thousands of food lovers who trust Tabuloo for their dining experiences
-              </p>
-            </motion.div>
-          </div>
-        </section>
-      )}
+      {/* CTA Section */}
+      <section className="bg-gradient-to-r from-red-800 to-red-900 text-white py-12 sm:py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <h2 className="text-2xl sm:text-4xl font-bold mb-4 sm:mb-6">
+              Ready to Start Your Culinary Journey?
+            </h2>
+            <p className="text-lg sm:text-xl text-red-100 mb-6 sm:mb-8">
+              {user ? 'Explore our amazing features and book your next dining experience!' : 'Join thousands of food lovers who trust Tabuloo for their dining experiences'}
+            </p>
+          </motion.div>
+        </div>
+      </section>
 
-      {/* Footer - Only show if not logged in and on larger screens */}
-      {!user && (
-        <footer className="hidden md:block bg-gray-900 text-white py-12 sm:py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-              <div>
-                <div className="flex items-center mb-3 sm:mb-4">
-                  <img 
-                    src="/tabuloo-logo.png" 
-                    alt="Tabuloo" 
-                    className="h-6 w-auto sm:h-8 brightness-0 invert"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                    }}
-                  />
-                  <div className="hidden flex items-center">
-                    <MapPin className="h-4 w-4 sm:h-6 sm:w-6 text-red-700" />
-                    <span className="ml-2 text-lg sm:text-xl font-bold">Tabuloo</span>
-                  </div>
-                </div>
-                <p className="text-gray-400 mb-3 sm:mb-4 text-sm sm:text-base">
-                  Your gateway to amazing dining experiences. Book, order, and celebrate with ease.
-                </p>
-                <div className="flex space-x-3 sm:space-x-4">
-                  <Facebook className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 hover:text-red-700 cursor-pointer" />
-                  <Instagram className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 hover:text-red-700 cursor-pointer" />
-                  <Twitter className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 hover:text-red-700 cursor-pointer" />
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Services</h3>
-                <ul className="space-y-1 sm:space-y-2 text-gray-400 text-sm sm:text-base">
-                  <li><a href="#" className="hover:text-red-700">Table Reservations</a></li>
-                  <li><a href="#" className="hover:text-red-700">Food Delivery</a></li>
-                  <li><a href="#" className="hover:text-red-700">Event Planning</a></li>
-                  <li><a href="#" className="hover:text-red-700">Corporate Catering</a></li>
-                </ul>
-              </div>
-              
-              <div>
-                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Company</h3>
-                <ul className="space-y-1 sm:space-y-2 text-gray-400 text-sm sm:text-base">
-                  <li><a href="#" className="hover:text-red-700">About Us</a></li>
-                  <li><a href="#" className="hover:text-red-700">Careers</a></li>
-                  <li><a href="#" className="hover:text-red-700">Press</a></li>
-                  <li><a href="#" className="hover:text-red-700">Blog</a></li>
-                </ul>
-              </div>
-              
-              <div>
-                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Contact</h3>
-                <div className="space-y-1 sm:space-y-2 text-gray-400 text-sm sm:text-base">
-                  <div className="flex items-center">
-                    <Phone className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                    <span>+1 (555) 123-4567</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Mail className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                    <span>hello@tabuloo.com</span>
-                  </div>
-                  <div className="flex items-center">
-                    <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                    <span>123 Food Street, Culinary City</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-800 mt-8 sm:mt-12 pt-6 sm:pt-8 text-center text-gray-400 text-sm sm:text-base">
-              <p>&copy; 2025 Tabuloo. All rights reserved.</p>
-            </div>
-          </div>
-        </footer>
-      )}
+
 
       {/* Modals */}
       {showBookTable && (

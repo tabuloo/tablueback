@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { X, ShoppingCart, Plus, Minus, MapPin, Truck, CreditCard, CheckCircle, Wallet, Building, Smartphone, Banknote } from 'lucide-react';
+import { X, ShoppingCart, Plus, Minus, MapPin, Truck, CreditCard, CheckCircle, Wallet, Building, Smartphone, Banknote, Navigation } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { validateIndianPhoneNumber, formatPhoneNumber, validateCardNumber, formatCardNumber, validateCVV, formatCVV, validateExpiryDate, formatExpiryDate } from '../../utils/validation';
 
@@ -35,6 +35,8 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
     name: user?.name || '',
     phone: user?.phone || ''
   });
+
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
 
   const paymentMethods = [
     { id: 'wallet', name: 'Tabuloo Wallet', icon: Wallet, description: `Balance: ₹${(user?.walletBalance || 0).toFixed(2)}` },
@@ -116,6 +118,12 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
       toast.error('Please enter delivery address');
       return;
     }
+
+    if (deliveryAddress.trim().length < 10) {
+      toast.error('Please enter a complete delivery address (minimum 10 characters)');
+      return;
+    }
+
     if (!customerDetails.name.trim() || !customerDetails.phone.trim()) {
       toast.error('Please enter your name and phone number');
       return;
@@ -183,6 +191,13 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
     // Only add address field for delivery orders
     if (orderType === 'delivery') {
       orderData.address = deliveryAddress;
+      // Add location coordinates if available
+      if (currentLocation) {
+        orderData.location = {
+          lat: currentLocation.lat,
+          lng: currentLocation.lng
+        };
+      }
     }
 
     try {
@@ -195,6 +210,50 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
     } catch (error) {
       console.error('Order error:', error);
     }
+  };
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by this browser');
+      return;
+    }
+
+    toast.loading('Getting your current location...');
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCurrentLocation({ lat: latitude, lng: longitude });
+        
+        // Reverse geocode to get address (simplified - in production use Google Geocoding API)
+        const address = `Current Location (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+        setDeliveryAddress(address);
+        
+        toast.dismiss();
+        toast.success('Location captured successfully!');
+      },
+      (error) => {
+        toast.dismiss();
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            toast.error('Location access denied. Please enable location permissions.');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            toast.error('Location information unavailable.');
+            break;
+          case error.TIMEOUT:
+            toast.error('Location request timed out.');
+            break;
+          default:
+            toast.error('Error getting location. Please enter address manually.');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
   };
 
   const sendOrderNotifications = async (order: any, restaurant: any, user: any) => {
@@ -450,20 +509,57 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
             <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6">Delivery Address</h3>
             
             <div className="space-y-4 sm:space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <MapPin className="h-4 w-4 inline mr-1" />
-                  Full Delivery Address *
-                </label>
-                <textarea
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
-                  rows={4}
-                  placeholder="Enter your complete delivery address with landmarks..."
-                  required
-                />
-              </div>
+                             <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   <MapPin className="h-4 w-4 inline mr-1" />
+                   Full Delivery Address *
+                 </label>
+                 <textarea
+                   value={deliveryAddress}
+                   onChange={(e) => setDeliveryAddress(e.target.value)}
+                   className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                   rows={4}
+                   placeholder="Enter your complete delivery address with landmarks..."
+                   required
+                 />
+                 
+                 {/* Location Buttons */}
+                 <div className="flex flex-col sm:flex-row gap-3 mt-3">
+                   <button
+                     type="button"
+                     onClick={getCurrentLocation}
+                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center text-sm"
+                   >
+                     <Navigation className="h-4 w-4 mr-2" />
+                     Use Current Location
+                   </button>
+                   <button
+                     type="button"
+                     className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center text-sm"
+                   >
+                     <MapPin className="h-4 w-4 mr-2" />
+                     Show Map & Pick Location
+                   </button>
+                 </div>
+                 
+                 {/* Current Location Display */}
+                 {currentLocation && (
+                   <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                     <div className="flex items-start">
+                       <Navigation className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                       <div className="flex-1">
+                         <p className="text-sm font-medium text-blue-900">📍 Current Location Captured:</p>
+                         <p className="text-sm text-blue-800 mt-1">
+                           Latitude: {currentLocation.lat.toFixed(6)}, Longitude: {currentLocation.lng.toFixed(6)}
+                         </p>
+                         <p className="text-xs text-blue-700 mt-1">
+                           You can edit the address above if needed
+                         </p>
+                       </div>
+                     </div>
+                   </div>
+                 )}
+               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
