@@ -26,25 +26,56 @@ const AdminDashboard: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.address || !formData.capacity || !formData.crowdCapacity || !formData.price || !formData.ownerUsername || !formData.ownerPassword) {
-      toast.error('Please fill in all required fields');
+    // Validate all required fields
+    if (!formData.name.trim()) {
+      toast.error('Restaurant name is required');
+      return;
+    }
+    
+    if (!formData.address.trim()) {
+      toast.error('Restaurant address is required');
+      return;
+    }
+    
+    if (!formData.capacity || parseInt(formData.capacity) <= 0) {
+      toast.error('Please enter a valid food serving capacity');
+      return;
+    }
+    
+    if (!formData.crowdCapacity || parseInt(formData.crowdCapacity) <= 0) {
+      toast.error('Please enter a valid crowd capacity');
+      return;
+    }
+    
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      toast.error('Please enter a valid average price per person');
+      return;
+    }
+    
+    if (!formData.ownerUsername.trim()) {
+      toast.error('Owner username is required');
+      return;
+    }
+    
+    if (!formData.ownerPassword.trim() || formData.ownerPassword.length < 6) {
+      toast.error('Owner password must be at least 6 characters long');
       return;
     }
 
     const newRestaurant = {
-      name: formData.name,
+      name: formData.name.trim(),
       type: formData.type,
-      address: formData.address,
+      address: formData.address.trim(),
       capacity: parseInt(formData.capacity),
       crowdCapacity: parseInt(formData.crowdCapacity),
-      images: formData.images.split(',').map(img => img.trim()),
+      images: formData.images ? formData.images.split(',').map(img => img.trim()).filter(img => img) : [],
       price: parseFloat(formData.price),
       ownerCredentials: {
-        username: formData.ownerUsername,
+        username: formData.ownerUsername.trim(),
         password: formData.ownerPassword
       },
       isOpen: true,
-      timings: formData.timings
+      timings: formData.timings || '9:00 AM - 11:00 PM'
     };
 
     addRestaurant(newRestaurant)
@@ -62,6 +93,7 @@ const AdminDashboard: React.FC = () => {
           ownerPassword: '',
           timings: '9:00 AM - 11:00 PM'
         });
+        toast.success('Restaurant added successfully! Owner account has been created.');
       })
       .catch((error) => {
         console.error('Error adding restaurant:', error);
@@ -167,8 +199,8 @@ const AdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600 mt-2 text-sm sm:text-base">Manage your restaurant network</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Tabuloo Admin Dashboard</h1>
+          <p className="text-gray-600 mt-2 text-sm sm:text-base">Manage restaurant partnerships and create owner accounts</p>
         </div>
 
         {/* Stats Cards */}
@@ -179,7 +211,7 @@ const AdminDashboard: React.FC = () => {
                 <Users className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600" />
               </div>
               <div className="ml-2 sm:ml-4">
-                <h3 className="text-xs sm:text-lg font-semibold text-gray-900">Total Customers</h3>
+                <h3 className="text-xs sm:text-sm font-medium text-gray-600">Total Customers</h3>
                 <p className="text-lg sm:text-2xl font-bold text-blue-600">1,234</p>
               </div>
             </div>
@@ -191,7 +223,7 @@ const AdminDashboard: React.FC = () => {
                 <Store className="h-4 w-4 sm:h-6 sm:w-6 text-green-600" />
               </div>
               <div className="ml-2 sm:ml-4">
-                <h3 className="text-xs sm:text-lg font-semibold text-gray-900">Total Restaurants</h3>
+                <h3 className="text-xs sm:text-sm font-medium text-gray-600">Partner Restaurants</h3>
                 <p className="text-lg sm:text-2xl font-bold text-green-600">{restaurants.length}</p>
               </div>
             </div>
@@ -203,21 +235,21 @@ const AdminDashboard: React.FC = () => {
                 <MapPin className="h-4 w-4 sm:h-6 sm:w-6 text-purple-600" />
               </div>
               <div className="ml-2 sm:ml-4">
-                <h3 className="text-xs sm:text-lg font-semibold text-gray-900">Active Places</h3>
+                <h3 className="text-xs sm:text-sm font-medium text-gray-600">Active Partners</h3>
                 <p className="text-lg sm:text-2xl font-bold text-purple-600">{restaurants.filter(r => r.isOpen).length}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Add Place Button */}
+        {/* Add Restaurant Button */}
         <div className="mb-4 sm:mb-6">
           <button
             onClick={() => setShowAddForm(true)}
-            className="bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2 text-sm sm:text-base"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center space-x-3 text-base sm:text-lg font-semibold shadow-lg"
           >
-            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span>Add Place</span>
+            <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+            <span>Add New Restaurant & Create Owner Account</span>
           </button>
         </div>
 
@@ -225,13 +257,13 @@ const AdminDashboard: React.FC = () => {
         {showAddForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Add New Place</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Add New Restaurant & Create Owner Account</h2>
               
               <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Name of the Place
+                      Restaurant Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -239,12 +271,14 @@ const AdminDashboard: React.FC = () => {
                       value={formData.name}
                       onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Enter restaurant name"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Enter the official name of the restaurant</p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Type of Place
+                      Restaurant Type <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.type}
@@ -255,12 +289,13 @@ const AdminDashboard: React.FC = () => {
                       <option value="hotel">Hotel</option>
                       <option value="resort">Resort</option>
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">Select the type of establishment</p>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Address
+                    Restaurant Address <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     required
@@ -268,41 +303,49 @@ const AdminDashboard: React.FC = () => {
                     onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                     rows={3}
+                    placeholder="Enter complete restaurant address"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Include street address, city, and state</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Food Serving Capacity
+                      Food Serving Capacity <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
                       required
+                      min="1"
                       value={formData.capacity}
                       onChange={(e) => setFormData(prev => ({ ...prev, capacity: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Number of people"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Maximum number of people that can be served food</p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Crowd Capacity
+                      Crowd Capacity <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
                       required
+                      min="1"
                       value={formData.crowdCapacity}
                       onChange={(e) => setFormData(prev => ({ ...prev, crowdCapacity: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Maximum crowd capacity"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Total capacity for events and gatherings</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Images (comma separated URLs)
+                      Restaurant Images (comma separated URLs)
                     </label>
                     <input
                       type="text"
@@ -311,48 +354,79 @@ const AdminDashboard: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                       placeholder="https://image1.jpg, https://image2.jpg"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Optional: Add image URLs separated by commas</p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Average Price (₹)
+                      Average Price per Person (₹) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
                       step="0.01"
+                      min="0.01"
                       required
                       value={formData.price}
                       onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Average cost per person"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Typical cost per person for a meal</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Owner Username
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.ownerUsername}
-                      onChange={(e) => setFormData(prev => ({ ...prev, ownerUsername: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Operating Hours
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.timings}
+                    onChange={(e) => setFormData(prev => ({ ...prev, timings: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="e.g., 9:00 AM - 11:00 PM"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Standard operating hours (optional)</p>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Owner Password
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={formData.ownerPassword}
-                      onChange={(e) => setFormData(prev => ({ ...prev, ownerPassword: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
+                {/* Restaurant Owner Account Creation Section */}
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Create Restaurant Owner Account</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    This will create login credentials for the restaurant owner to manage their restaurant.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Owner Username <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.ownerUsername}
+                        onChange={(e) => setFormData(prev => ({ ...prev, ownerUsername: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="Enter username for login"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">This will be the login username for the restaurant owner</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Owner Password <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={formData.ownerPassword}
+                        onChange={(e) => setFormData(prev => ({ ...prev, ownerPassword: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="Enter password for login"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Minimum 6 characters. Owner can change this later.</p>
+                    </div>
                   </div>
                 </div>
 
@@ -368,7 +442,7 @@ const AdminDashboard: React.FC = () => {
                     type="submit"
                     className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-sm"
                   >
-                    Submit
+                    Create Restaurant & Owner Account
                   </button>
                 </div>
               </form>
@@ -381,7 +455,7 @@ const AdminDashboard: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4 sm:mb-6">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Edit Place Details</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Edit Restaurant & Owner Account</h2>
                 <button onClick={closeEditForm} className="text-gray-400 hover:text-gray-600">
                   <X className="h-5 w-5 sm:h-6 sm:w-6" />
                 </button>
@@ -391,7 +465,7 @@ const AdminDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Name of the Place
+                      Restaurant Name
                     </label>
                     <input
                       type="text"
@@ -399,12 +473,13 @@ const AdminDashboard: React.FC = () => {
                       value={formData.name}
                       onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Enter restaurant name"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Type of Place
+                      Restaurant Type
                     </label>
                     <select
                       value={formData.type}
@@ -420,7 +495,7 @@ const AdminDashboard: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Address
+                    Restaurant Address
                   </label>
                   <textarea
                     required
@@ -428,6 +503,7 @@ const AdminDashboard: React.FC = () => {
                     onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                     rows={3}
+                    placeholder="Enter complete restaurant address"
                   />
                 </div>
 
@@ -442,6 +518,7 @@ const AdminDashboard: React.FC = () => {
                       value={formData.capacity}
                       onChange={(e) => setFormData(prev => ({ ...prev, capacity: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Number of people"
                     />
                   </div>
 
@@ -455,6 +532,7 @@ const AdminDashboard: React.FC = () => {
                       value={formData.crowdCapacity}
                       onChange={(e) => setFormData(prev => ({ ...prev, crowdCapacity: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Maximum crowd capacity"
                     />
                   </div>
                 </div>
@@ -462,7 +540,7 @@ const AdminDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Images (comma separated URLs)
+                      Restaurant Images (comma separated URLs)
                     </label>
                     <input
                       type="text"
@@ -475,7 +553,7 @@ const AdminDashboard: React.FC = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Average Price (₹)
+                      Average Price per Person (₹)
                     </label>
                     <input
                       type="number"
@@ -484,6 +562,7 @@ const AdminDashboard: React.FC = () => {
                       value={formData.price}
                       onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Average cost per person"
                     />
                   </div>
                 </div>
@@ -501,31 +580,43 @@ const AdminDashboard: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Owner Username
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.ownerUsername}
-                      onChange={(e) => setFormData(prev => ({ ...prev, ownerUsername: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
+                {/* Restaurant Owner Account Section */}
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Restaurant Owner Account</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Update the login credentials for the restaurant owner.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Owner Username
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.ownerUsername}
+                        onChange={(e) => setFormData(prev => ({ ...prev, ownerUsername: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="Username for login"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">This will be the login username for the restaurant owner</p>
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Owner Password
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={formData.ownerPassword}
-                      onChange={(e) => setFormData(prev => ({ ...prev, ownerPassword: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Owner Password
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={formData.ownerPassword}
+                        onChange={(e) => setFormData(prev => ({ ...prev, ownerPassword: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="Password for login"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Minimum 6 characters. Owner can change this later.</p>
+                    </div>
                   </div>
                 </div>
 
@@ -541,7 +632,7 @@ const AdminDashboard: React.FC = () => {
                     type="submit"
                     className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-sm"
                   >
-                    Update Place
+                    Update Restaurant & Owner Account
                   </button>
                 </div>
               </form>
@@ -593,7 +684,7 @@ const AdminDashboard: React.FC = () => {
         {/* Restaurants List */}
         <div className="bg-white rounded-xl shadow-sm border">
           <div className="p-4 sm:p-6 border-b">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Registered Places</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Partner Restaurants</h2>
           </div>
           
           <div className="p-4 sm:p-6">

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Clock, DollarSign, Users, Package, Eye, EyeOff, ToggleLeft, ToggleRight, Edit, X, Trash2, AlertTriangle, Calendar, PartyPopper, Phone, MapPin } from 'lucide-react';
+import { Plus, Clock, DollarSign, Users, Package, Eye, EyeOff, ToggleLeft, ToggleRight, Edit, X, Trash2, AlertTriangle, Calendar, PartyPopper, Phone, MapPin, Lock, Eye as EyeIcon, EyeOff as EyeOffIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const RestaurantOwnerDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, changeRestaurantOwnerPassword } = useAuth();
   const { restaurants, menuItems, orders, bookings, addMenuItem, updateMenuItem, updateOrderStatus, updateRestaurantStatus, updateMenuItemAvailability, deleteMenuItem } = useApp();
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showEditMenu, setShowEditMenu] = useState(false);
@@ -13,6 +13,19 @@ const RestaurantOwnerDashboard: React.FC = () => {
   const [editingMenuItem, setEditingMenuItem] = useState<any>(null);
   const [deletingMenuItem, setDeletingMenuItem] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'orders' | 'bookings' | 'menu' | 'settings'>('orders');
+  
+  // Password change state
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false
+  });
 
   // Get current restaurant data
   const currentRestaurant = restaurants.find(r => r.id === user?.restaurantId);
@@ -153,6 +166,57 @@ const RestaurantOwnerDashboard: React.FC = () => {
     'pastry', 'ice cream', 'tiffin', 'biryani', 'fried rice', 'curry', 'appetizer', 
     'main course', 'dessert', 'beverage', 'pizza', 'burger', 'sandwich'
   ];
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      toast.error('Please fill in all password fields');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters long');
+      return;
+    }
+
+    // Verify current password first
+    if (!currentRestaurant) return;
+    
+    if (currentRestaurant.ownerCredentials.password !== passwordForm.currentPassword) {
+      toast.error('Current password is incorrect');
+      return;
+    }
+
+    // Change password
+    const success = await changeRestaurantOwnerPassword(passwordForm.newPassword);
+    
+    if (success) {
+      setShowPasswordChange(false);
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setShowPasswords({
+        current: false,
+        new: false,
+        confirm: false
+      });
+    }
+  };
+
+  const togglePasswordVisibility = (field: 'current' | 'new' | 'confirm') => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [field]: !prev[field]
+    }));
+  };
 
   if (!currentRestaurant) {
     return (
@@ -468,77 +532,140 @@ const RestaurantOwnerDashboard: React.FC = () => {
             {activeTab === 'menu' && (
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Menu Items</h3>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Menu Items</h3>
+                    <p className="text-sm text-gray-600 mt-1">Manage your restaurant's menu items</p>
+                  </div>
                   <button
                     onClick={() => setShowAddMenu(true)}
-                    className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2 text-sm"
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center space-x-2 text-sm font-medium shadow-lg"
                   >
-                    <Plus className="h-4 w-4" />
-                    <span>Add Item</span>
+                    <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span>Add Menu Item</span>
                   </button>
+                </div>
+
+                {/* Menu Stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4">
+                  <div className="bg-white p-3 rounded-lg border text-center">
+                    <p className="text-lg font-bold text-gray-900">{restaurantMenuItems.length}</p>
+                    <p className="text-xs text-gray-600">Total Items</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border text-center">
+                    <p className="text-lg font-bold text-green-600">{restaurantMenuItems.filter(item => item.available).length}</p>
+                    <p className="text-xs text-gray-600">Available</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border text-center">
+                    <p className="text-lg font-bold text-red-600">{restaurantMenuItems.filter(item => !item.available).length}</p>
+                    <p className="text-xs text-gray-600">Unavailable</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border text-center">
+                    <p className="text-lg font-bold text-blue-600">{restaurantMenuItems.filter(item => item.category === 'veg').length}</p>
+                    <p className="text-xs text-gray-600">Vegetarian</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {restaurantMenuItems.map((item) => (
-                    <div key={item.id} className="border rounded-lg p-3 sm:p-4">
+                    <div key={item.id} className={`border rounded-lg p-3 sm:p-4 transition-all ${
+                      item.available ? 'bg-white' : 'bg-gray-50'
+                    }`}>
                       {item.image && (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-24 sm:h-32 object-cover rounded-lg mb-2 sm:mb-3"
-                          onError={(e) => {
-                            e.currentTarget.src = 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg';
-                          }}
-                        />
+                        <div className="relative">
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className={`w-full h-24 sm:h-32 object-cover rounded-lg mb-2 sm:mb-3 transition-all ${
+                              !item.available ? 'opacity-50 grayscale' : ''
+                            }`}
+                            onError={(e) => {
+                              e.currentTarget.src = 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg';
+                            }}
+                          />
+                          {!item.available && (
+                            <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                              Unavailable
+                            </div>
+                          )}
+                        </div>
                       )}
                       
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900 text-sm sm:text-base">{item.name}</h4>
+                          <h4 className={`font-medium text-gray-900 text-sm sm:text-base ${
+                            !item.available ? 'line-through text-gray-500' : ''
+                          }`}>{item.name}</h4>
                           <p className="text-xs sm:text-sm text-gray-600">{item.itemCategory} • {item.quantity}</p>
                         </div>
                         <span className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ml-1 ${
                           item.category === 'veg' ? 'bg-green-500' : 'bg-red-500'
-                        }`}></span>
+                        }`} title={item.category === 'veg' ? 'Vegetarian' : 'Non-Vegetarian'}></span>
                       </div>
                       
                       <div className="flex justify-between items-center">
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base">₹{item.price}</p>
+                        <p className={`font-semibold text-gray-900 text-sm sm:text-base ${
+                          !item.available ? 'text-gray-500' : ''
+                        }`}>₹{item.price}</p>
                         <div className="flex items-center space-x-1 sm:space-x-2">
                           <button
                             onClick={() => handleEditMenuItem(item)}
-                            className="p-1 text-blue-600 hover:text-blue-800"
+                            className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
                             title="Edit menu item"
                           >
                             <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteMenuItem(item)}
-                            className="p-1 text-red-600 hover:text-red-800"
+                            className="p-1 text-red-600 hover:text-red-800 transition-colors"
                             title="Delete menu item"
                           >
                             <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                           </button>
-                          <button
-                            onClick={() => updateMenuItemAvailability(item.id, !item.available)}
-                            className={`flex items-center space-x-1 px-1.5 py-1 sm:px-2 sm:py-1 rounded text-xs sm:text-sm ${
-                              item.available
-                                ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                                : 'bg-red-100 text-red-800 hover:bg-red-200'
-                            }`}
-                          >
-                            {item.available ? (
-                              <Eye className="h-3 w-3" />
-                            ) : (
-                              <EyeOff className="h-3 w-3" />
-                            )}
-                            <span className="hidden sm:inline">{item.available ? 'Available' : 'Unavailable'}</span>
-                          </button>
                         </div>
+                      </div>
+
+                      {/* Availability Toggle - More Prominent */}
+                      <div className="mt-3 pt-3 border-t">
+                        <button
+                          onClick={() => updateMenuItemAvailability(item.id, !item.available)}
+                          className={`w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                            item.available
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
+                              : 'bg-red-100 text-red-800 hover:bg-red-200 border border-red-300'
+                          }`}
+                          title={item.available ? 'Click to mark as unavailable' : 'Click to mark as available'}
+                        >
+                          {item.available ? (
+                            <>
+                              <Eye className="h-4 w-4" />
+                              <span>Available</span>
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="h-4 w-4" />
+                              <span>Unavailable</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {restaurantMenuItems.length === 0 && (
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No menu items yet</h3>
+                    <p className="text-gray-600 mb-4">Start building your menu by adding your first item</p>
+                    <button
+                      onClick={() => setShowAddMenu(true)}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 mx-auto"
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span>Add Your First Menu Item</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -600,6 +727,23 @@ const RestaurantOwnerDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Password Change Section */}
+                <div className="border-t pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="text-base font-semibold text-gray-900">Account Security</h4>
+                      <p className="text-sm text-gray-600">Change your login password</p>
+                    </div>
+                    <button
+                      onClick={() => setShowPasswordChange(true)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 text-sm"
+                    >
+                      <Lock className="h-4 w-4" />
+                      <span>Change Password</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -609,13 +753,21 @@ const RestaurantOwnerDashboard: React.FC = () => {
         {showAddMenu && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">Add Menu Item</h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Add New Menu Item</h3>
+                <button
+                  onClick={() => setShowAddMenu(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
               
               <form onSubmit={handleAddMenuItem} className="space-y-3 sm:space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category
+                      Food Type <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={menuFormData.category}
@@ -625,11 +777,12 @@ const RestaurantOwnerDashboard: React.FC = () => {
                       <option value="veg">Vegetarian</option>
                       <option value="non-veg">Non-Vegetarian</option>
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">Select food type</p>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Item Category
+                      Item Category <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={menuFormData.itemCategory}
@@ -644,12 +797,13 @@ const RestaurantOwnerDashboard: React.FC = () => {
                         </option>
                       ))}
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">Choose item category</p>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Item Name
+                    Item Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -657,13 +811,15 @@ const RestaurantOwnerDashboard: React.FC = () => {
                     value={menuFormData.name}
                     onChange={(e) => setMenuFormData(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="Enter item name"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Enter the name of your menu item</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quantity/Size
+                      Quantity/Size <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -673,26 +829,30 @@ const RestaurantOwnerDashboard: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                       placeholder="e.g., 1 plate, 500ml"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Specify quantity or size</p>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Price (₹)
+                      Price (₹) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
                       step="0.01"
+                      min="0.01"
                       required
                       value={menuFormData.price}
                       onChange={(e) => setMenuFormData(prev => ({ ...prev, price: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="0.00"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Set item price</p>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Image URL (optional)
+                    Image URL
                   </label>
                   <input
                     type="url"
@@ -701,21 +861,22 @@ const RestaurantOwnerDashboard: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                     placeholder="https://example.com/image.jpg"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Optional: Add image URL for better presentation</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowAddMenu(false)}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 text-sm font-medium transition-all shadow-lg"
                   >
-                    Add Item
+                    Add Menu Item
                   </button>
                 </div>
               </form>
@@ -738,7 +899,7 @@ const RestaurantOwnerDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category
+                      Food Type <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={menuFormData.category}
@@ -748,11 +909,12 @@ const RestaurantOwnerDashboard: React.FC = () => {
                       <option value="veg">Vegetarian</option>
                       <option value="non-veg">Non-Vegetarian</option>
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">Select food type</p>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Item Category
+                      Item Category <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={menuFormData.itemCategory}
@@ -767,12 +929,13 @@ const RestaurantOwnerDashboard: React.FC = () => {
                         </option>
                       ))}
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">Choose item category</p>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Item Name
+                    Item Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -780,13 +943,15 @@ const RestaurantOwnerDashboard: React.FC = () => {
                     value={menuFormData.name}
                     onChange={(e) => setMenuFormData(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="Enter item name"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Enter the name of your menu item</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quantity/Size
+                      Quantity/Size <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -796,20 +961,23 @@ const RestaurantOwnerDashboard: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                       placeholder="e.g., 1 plate, 500ml"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Specify quantity or size</p>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Price (₹)
+                      Price (₹) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
                       step="0.01"
+                      min="0.01"
                       required
                       value={menuFormData.price}
                       onChange={(e) => setMenuFormData(prev => ({ ...prev, price: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Set item price</p>
                   </div>
                 </div>
 
@@ -830,15 +998,15 @@ const RestaurantOwnerDashboard: React.FC = () => {
                   <button
                     type="button"
                     onClick={closeEditForm}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 text-sm font-medium transition-all shadow-lg"
                   >
-                    Update Item
+                    Update Menu Item
                   </button>
                 </div>
               </form>
@@ -883,6 +1051,122 @@ const RestaurantOwnerDashboard: React.FC = () => {
                   Delete Item
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Password Change Modal */}
+        {showPasswordChange && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Change Password</h3>
+                <button 
+                  onClick={() => setShowPasswordChange(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords.current ? 'text' : 'password'}
+                      required
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility('current')}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPasswords.current ? (
+                        <EyeOffIcon className="h-4 w-4" />
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords.new ? 'text' : 'password'}
+                      required
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Enter new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility('new')}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPasswords.new ? (
+                        <EyeOffIcon className="h-4 w-4" />
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords.confirm ? 'text' : 'password'}
+                      required
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Confirm new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility('confirm')}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPasswords.confirm ? (
+                        <EyeOffIcon className="h-4 w-4" />
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordChange(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Change Password
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

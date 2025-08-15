@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { X, Package, User, Phone, Mail, MapPin, Truck, Eye, EyeOff, CheckCircle, Clock } from 'lucide-react';
+import { X, Package, User, Phone, Mail, MapPin, Truck, Eye, EyeOff, CheckCircle, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface DeliveryBoyAuthModalProps {
@@ -27,11 +27,21 @@ interface DeliveryBoyFormData {
 }
 
 const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onClose }) => {
-  const { login, register } = useAuth();
+  const { login, register, sendAadhaarOTP, verifyAadhaarOTP, sendDeliveryLoginOTP } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Aadhaar verification states
+  const [aadhaarOTPSent, setAadhaarOTPSent] = useState(false);
+  const [aadhaarOTP, setAadhaarOTP] = useState('');
+  const [aadhaarVerified, setAadhaarVerified] = useState(false);
+  
+  // Login OTP states
+  const [loginOTPSent, setLoginOTPSent] = useState(false);
+  const [loginOTP, setLoginOTP] = useState('');
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
 
   const [formData, setFormData] = useState<DeliveryBoyFormData>({
     name: '',
@@ -53,56 +63,8 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
 
   const [loginData, setLoginData] = useState({
     phone: '',
-    otp: ''
+    password: ''
   });
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpTimer, setOtpTimer] = useState(0);
-
-  // OTP timer countdown
-  React.useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (otpTimer > 0) {
-      interval = setInterval(() => {
-        setOtpTimer((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [otpTimer]);
-
-  const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
-
-  const sendOTP = async () => {
-    if (!loginData.phone.trim()) {
-      toast.error('Please enter your phone number first');
-      return;
-    }
-
-    if (loginData.phone.length !== 10) {
-      toast.error('Please enter a valid 10-digit phone number');
-      return;
-    }
-
-    try {
-      // Generate OTP (in real app, this would be sent via SMS)
-      const otp = generateOTP();
-      
-      // Store OTP in localStorage for demo purposes
-      // In production, this should be handled server-side
-      localStorage.setItem(`otp_${loginData.phone}`, otp);
-      
-      // Set timer for 60 seconds
-      setOtpTimer(60);
-      setOtpSent(true);
-      
-      toast.success(`OTP sent to ${loginData.phone}: ${otp}`);
-      console.log(`OTP for ${loginData.phone}: ${otp}`);
-      
-    } catch (error) {
-      toast.error('Failed to send OTP. Please try again.');
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -128,7 +90,19 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
       return false;
     }
     if (formData.phone.length !== 10) {
-      toast.error('Phone number must be 10 digits');
+      toast.error('Phone number must be exactly 10 digits');
+      return false;
+    }
+    if (!formData.emergencyContact.trim()) {
+      toast.error('Emergency contact is required');
+      return false;
+    }
+    if (formData.emergencyContact.length !== 10) {
+      toast.error('Emergency contact must be exactly 10 digits');
+      return false;
+    }
+    if (formData.phone === formData.emergencyContact) {
+      toast.error('Emergency contact cannot be the same as your phone number');
       return false;
     }
     if (!formData.password) {
@@ -159,12 +133,20 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
       toast.error('Pincode is required');
       return false;
     }
+    if (formData.pincode.length !== 6) {
+      toast.error('Pincode must be exactly 6 digits');
+      return false;
+    }
     if (!formData.idProofNumber.trim()) {
       toast.error('ID proof number is required');
       return false;
     }
-    if (!formData.emergencyContact.trim()) {
-      toast.error('Emergency contact is required');
+    if (formData.idProofType === 'aadhar' && formData.idProofNumber.length !== 12) {
+      toast.error('Aadhaar number must be exactly 12 digits');
+      return false;
+    }
+    if (!aadhaarVerified && formData.idProofType === 'aadhar') {
+      toast.error('Please verify your Aadhaar number first');
       return false;
     }
     return true;
@@ -175,11 +157,86 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
       toast.error('Phone number is required');
       return false;
     }
-    if (!loginData.otp || loginData.otp.length !== 6) {
-      toast.error('Please enter a valid 6-digit OTP');
+    if (loginData.phone.length !== 10) {
+      toast.error('Phone number must be exactly 10 digits');
+      return false;
+    }
+    if (loginMethod === 'password' && !loginData.password.trim()) {
+      toast.error('Password is required');
+      return false;
+    }
+    if (loginMethod === 'otp' && !loginOTP.trim()) {
+      toast.error('OTP is required');
       return false;
     }
     return true;
+  };
+
+  const handleSendAadhaarOTP = async () => {
+    if (!formData.idProofNumber.trim()) {
+      toast.error('Please enter Aadhaar number first');
+      return;
+    }
+    if (formData.idProofNumber.length !== 12) {
+      toast.error('Aadhaar number must be exactly 12 digits');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const success = await sendAadhaarOTP(formData.idProofNumber);
+      if (success) {
+        setAadhaarOTPSent(true);
+      }
+    } catch (error) {
+      console.error('Error sending Aadhaar OTP:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyAadhaarOTP = async () => {
+    if (!aadhaarOTP.trim()) {
+      toast.error('Please enter OTP');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const success = await verifyAadhaarOTP(formData.idProofNumber, aadhaarOTP);
+      if (success) {
+        setAadhaarVerified(true);
+        setAadhaarOTPSent(false);
+        setAadhaarOTP('');
+      }
+    } catch (error) {
+      console.error('Error verifying Aadhaar OTP:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSendLoginOTP = async () => {
+    if (!loginData.phone.trim()) {
+      toast.error('Please enter phone number first');
+      return;
+    }
+    if (loginData.phone.length !== 10) {
+      toast.error('Phone number must be exactly 10 digits');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const success = await sendDeliveryLoginOTP(loginData.phone);
+      if (success) {
+        setLoginOTPSent(true);
+      }
+    } catch (error) {
+      console.error('Error sending login OTP:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -227,6 +284,9 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
           idProofType: 'aadhar', idProofNumber: '',
           emergencyContact: '', emergencyContactRelation: ''
         });
+        setAadhaarVerified(false);
+        setAadhaarOTPSent(false);
+        setAadhaarOTP('');
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -242,10 +302,22 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
 
     setIsSubmitting(true);
     try {
-      const success = await login(loginData, 'delivery_boy');
+      let credentials;
+      if (loginMethod === 'password') {
+        credentials = { phone: loginData.phone, password: loginData.password };
+      } else {
+        credentials = { phone: loginData.phone, otp: loginOTP };
+      }
+      
+      const success = await login(credentials, 'delivery_boy');
       if (success) {
         toast.success('Login successful!');
         onClose();
+        // Reset form
+        setLoginData({ phone: '', password: '' });
+        setLoginOTP('');
+        setLoginOTPSent(false);
+        setLoginMethod('password');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -297,7 +369,7 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
 
           {isLogin ? (
             /* Login Form */
-            <div className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <Phone className="h-4 w-4 inline mr-2" />
@@ -311,76 +383,98 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                   placeholder="Enter your phone number"
                   maxLength={10}
-                  disabled={otpSent}
                 />
               </div>
 
-              {!otpSent ? (
+              {/* Login Method Toggle */}
+              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
                 <button
                   type="button"
-                  onClick={sendOTP}
-                  disabled={!loginData.phone.trim() || loginData.phone.length !== 10}
-                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-4 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setLoginMethod('password')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    loginMethod === 'password'
+                      ? 'bg-white text-red-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 >
-                  <Phone className="h-4 w-4 inline mr-2" />
-                  Send OTP
+                  Password
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setLoginMethod('otp')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    loginMethod === 'otp'
+                      ? 'bg-white text-red-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  OTP
+                </button>
+              </div>
+
+              {loginMethod === 'password' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={loginData.password}
+                      onChange={(e) => handleLoginInputChange('password', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent pr-12"
+                      placeholder="Enter your password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      OTP
-                    </label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    OTP
+                  </label>
+                  <div className="flex space-x-2">
                     <input
                       type="text"
                       required
-                      value={loginData.otp}
-                      onChange={(e) => handleLoginInputChange('otp', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-center text-lg tracking-widest"
+                      value={loginOTP}
+                      onChange={(e) => setLoginOTP(e.target.value)}
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                       placeholder="Enter 6-digit OTP"
                       maxLength={6}
                     />
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-sm text-gray-500">
-                        {otpTimer > 0 ? (
-                          <span className="flex items-center text-orange-600">
-                            <Clock className="h-4 w-4 mr-1" />
-                            Resend in {otpTimer}s
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={sendOTP}
-                            className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                          >
-                            Resend OTP
-                          </button>
-                        )}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOtpSent(false);
-                          setLoginData(prev => ({ ...prev, otp: '' }));
-                          setOtpTimer(0);
-                        }}
-                        className="text-gray-500 hover:text-gray-700 text-sm"
-                      >
-                        Change Number
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSendLoginOTP}
+                      disabled={isSubmitting || loginOTPSent}
+                      className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {loginOTPSent ? 'OTP Sent' : 'Send OTP'}
+                    </button>
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || loginData.otp.length !== 6}
-                    className="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-3 px-4 rounded-lg hover:from-red-700 hover:to-red-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? 'Logging in...' : 'Login'}
-                  </button>
-                </form>
+                  {loginOTPSent && (
+                    <p className="text-xs text-green-600 mt-1">
+                      OTP sent to your registered mobile number
+                    </p>
+                  )}
+                </div>
               )}
-            </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-3 px-4 rounded-lg hover:from-red-700 hover:to-red-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Logging in...' : 'Login'}
+              </button>
+            </form>
           ) : (
             /* Registration Form */
             <form onSubmit={handleRegister} className="space-y-4">
@@ -601,10 +695,69 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
                       value={formData.idProofNumber}
                       onChange={(e) => handleInputChange('idProofNumber', e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      placeholder="Enter ID proof number"
+                      placeholder={formData.idProofType === 'aadhar' ? 'Enter 12-digit Aadhaar number' : 'Enter ID proof number'}
+                      maxLength={formData.idProofType === 'aadhar' ? 12 : undefined}
                     />
                   </div>
                 </div>
+
+                {/* Aadhaar Verification Section */}
+                {formData.idProofType === 'aadhar' && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Shield className="h-5 w-5 text-blue-600" />
+                      <h4 className="text-sm font-medium text-blue-900">Aadhaar Verification Required</h4>
+                    </div>
+                    
+                    {!aadhaarVerified ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-blue-700">
+                          For security, we need to verify your Aadhaar number. An OTP will be sent to your Aadhaar registered mobile number.
+                        </p>
+                        
+                        {!aadhaarOTPSent ? (
+                          <button
+                            type="button"
+                            onClick={handleSendAadhaarOTP}
+                            disabled={isSubmitting || formData.idProofNumber.length !== 12}
+                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          >
+                            Send Aadhaar Verification OTP
+                          </button>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex space-x-2">
+                              <input
+                                type="text"
+                                value={aadhaarOTP}
+                                onChange={(e) => setAadhaarOTP(e.target.value)}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                placeholder="Enter 6-digit OTP"
+                                maxLength={6}
+                              />
+                              <button
+                                type="button"
+                                onClick={handleVerifyAadhaarOTP}
+                                disabled={isSubmitting || !aadhaarOTP.trim()}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
+                              >
+                                Verify OTP
+                              </button>
+                            </div>
+                            <p className="text-xs text-blue-600">
+                              OTP sent to your Aadhaar registered mobile number
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 text-green-700">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="text-sm font-medium">Aadhaar verified successfully!</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Password */}

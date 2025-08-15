@@ -26,6 +26,8 @@ interface User {
   role: 'admin' | 'restaurant_owner' | 'public_user' | 'delivery_boy';
   restaurantId?: string;
   walletBalance?: number;
+  // Restaurant owner specific fields
+  canChangePassword?: boolean;
   // Delivery boy specific fields
   isOnline?: boolean;
   currentLocation?: {
@@ -53,6 +55,10 @@ interface User {
    loading: boolean;
    updateWalletBalance: (newBalance: number) => void;
    resetWalletBalanceToZero: () => Promise<boolean>;
+   changeRestaurantOwnerPassword: (newPassword: string) => Promise<boolean>;
+   sendAadhaarOTP: (aadhaarNumber: string) => Promise<boolean>;
+   verifyAadhaarOTP: (aadhaarNumber: string, otp: string) => Promise<boolean>;
+   sendDeliveryLoginOTP: (phoneNumber: string) => Promise<boolean>;
  }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -176,22 +182,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setLoading(true);
     
     try {
-      // Admin login with OTP verification
+      // Admin login with password verification
       if (role === 'admin') {
-        // For admin, we'll use a simple OTP verification
-        // In production, this should be more secure
-        const expectedOtp = '123456'; // Simple admin OTP for demo
+        // Only allow specific admin credentials
+        const allowedAdminCredentials = [
+          '9985121257',
+          'tablooofficial1@gmail.com'
+        ];
+        
+        // For demo purposes, use a simple password
+        const expectedPassword = 'admin123'; // Simple admin password for demo
         
         if (
-          (credentials.username === 'admin@tabuloo.com' || credentials.username === '9985121257') &&
-          credentials.otp === expectedOtp
+          allowedAdminCredentials.includes(credentials.username) &&
+          credentials.password === expectedPassword
         ) {
           // Create admin user in Firestore if doesn't exist
           const adminDoc = await getDoc(doc(db, 'users', 'admin_001'));
           if (!adminDoc.exists()) {
             await setDoc(doc(db, 'users', 'admin_001'), {
               name: 'Admin',
-              email: 'admin@tabuloo.com',
+              email: 'tablooofficial1@gmail.com',
               phone: '9985121257',
               role: 'admin',
               createdAt: new Date()
@@ -201,7 +212,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const adminUser: User = {
             id: 'admin_001',
             name: 'Admin',
-            email: 'admin@tabuloo.com',
+            email: 'tablooofficial1@gmail.com',
             phone: '9985121257',
             role: 'admin'
           };
@@ -211,30 +222,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log('Admin user logged in:', adminUser);
           setLoading(false);
           return true;
+        } else {
+          toast.error('Invalid admin credentials. Only authorized users can access admin panel.');
+          setLoading(false);
+          return false;
         }
       }
       
-      // Restaurant owner login with OTP verification
+      // Restaurant owner login with username and password verification
       if (role === 'restaurant_owner') {
         try {
-          // For restaurant owners, we'll use a simple OTP verification
-          // In production, this should be more secure
-          const expectedOtp = '123456'; // Simple restaurant owner OTP for demo
-          
-          if (credentials.otp !== expectedOtp) {
-            toast.error('Invalid OTP');
+          if (!credentials.username || !credentials.password) {
+            toast.error('Username and password are required');
             setLoading(false);
             return false;
           }
           
-          // Find restaurant with matching username
+          // Find restaurant with matching username and password
           const restaurantsSnapshot = await getDocs(collection(db, 'restaurants'));
           let matchingRestaurant: any = null;
           
           restaurantsSnapshot.forEach((doc) => {
             const restaurant = doc.data();
             if (restaurant.ownerCredentials && 
-                restaurant.ownerCredentials.username === credentials.username) {
+                restaurant.ownerCredentials.username === credentials.username &&
+                restaurant.ownerCredentials.password === credentials.password) {
               matchingRestaurant = { id: doc.id, ...restaurant };
             }
           });
@@ -247,6 +259,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               email: matchingRestaurant.ownerCredentials.username,
               role: 'restaurant_owner',
               restaurantId: matchingRestaurant.id,
+              canChangePassword: true,
               createdAt: new Date()
             };
             
@@ -261,7 +274,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               name: ownerData.name,
               email: ownerData.email,
               role: 'restaurant_owner',
-              restaurantId: matchingRestaurant.id
+              restaurantId: matchingRestaurant.id,
+              canChangePassword: true
             };
             
             setUser(ownerUser);
@@ -360,58 +374,126 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
       
-      // Delivery boy login with OTP verification
+      // Delivery boy login with password or OTP verification
       if (role === 'delivery_boy') {
         try {
-          if (!credentials.phone || !credentials.otp) {
-            toast.error('Phone number and OTP are required');
+          if (!credentials.phone) {
+            toast.error('Phone number is required');
             setLoading(false);
             return false;
           }
 
-          // For delivery boys, we'll use a simple OTP verification
-          // In production, this should be more secure
-          const expectedOtp = '123456'; // Simple delivery boy OTP for demo
-          
-          if (credentials.otp !== expectedOtp) {
-            toast.error('Invalid OTP');
-            setLoading(false);
-            return false;
-          }
-
-          const userId = `delivery_${credentials.phone.replace(/\D/g, '')}`;
-          
-          try {
-            const userDoc = await getDoc(doc(db, 'users', userId));
-            
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              
-              const deliveryBoyUser: User = {
-                id: userId,
-                name: userData.name,
-                phone: userData.phone,
-                role: 'delivery_boy',
-                isOnline: userData.isOnline || false,
-                currentLocation: userData.currentLocation,
-                vehicleDetails: userData.vehicleDetails,
-                earnings: userData.earnings || { total: 0, thisMonth: 0, thisWeek: 0 }
-              };
-              
-              setUser(deliveryBoyUser);
-              localStorage.setItem('currentUser', JSON.stringify(deliveryBoyUser));
-              console.log('Delivery boy logged in:', deliveryBoyUser);
-            } else {
-              toast.error('Delivery boy not found. Please register first.');
+          // Check if using password or OTP
+          if (credentials.password && !credentials.otp) {
+            // Password-based login
+            if (!credentials.password) {
+              toast.error('Password is required');
               setLoading(false);
               return false;
             }
+
+            const userId = `delivery_${credentials.phone.replace(/\D/g, '')}`;
             
-            setLoading(false);
-            return true;
-          } catch (error) {
-            console.error('Error accessing delivery boy document:', error);
-            toast.error('Login failed. Please try again.');
+            try {
+              const userDoc = await getDoc(doc(db, 'users', userId));
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                
+                // Verify password
+                if (userData.password !== credentials.password) {
+                  toast.error('Invalid password');
+                  setLoading(false);
+                  return false;
+                }
+                
+                const deliveryBoyUser: User = {
+                  id: userId,
+                  name: userData.name,
+                  phone: userData.phone,
+                  role: 'delivery_boy',
+                  isOnline: userData.isOnline || false,
+                  currentLocation: userData.currentLocation,
+                  vehicleDetails: userData.vehicleDetails,
+                  earnings: userData.earnings || { total: 0, thisMonth: 0, thisWeek: 0 }
+                };
+                
+                setUser(deliveryBoyUser);
+                localStorage.setItem('currentUser', JSON.stringify(deliveryBoyUser));
+                console.log('Delivery boy logged in with password:', deliveryBoyUser);
+                
+                setLoading(false);
+                return true;
+              } else {
+                toast.error('Delivery partner not found. Please register first.');
+                setLoading(false);
+                return false;
+              }
+            } catch (error) {
+              console.error('Error accessing delivery boy document:', error);
+              toast.error('Login failed. Please try again.');
+              setLoading(false);
+              return false;
+            }
+          } else if (credentials.otp && !credentials.password) {
+            // OTP-based login
+            if (!credentials.otp) {
+              toast.error('OTP is required');
+              setLoading(false);
+              return false;
+            }
+
+            // Verify OTP
+            const storedOTP = localStorage.getItem(`delivery_login_otp_${credentials.phone}`);
+            if (storedOTP !== credentials.otp) {
+              toast.error('Invalid OTP. Please try again.');
+              setLoading(false);
+              return false;
+            }
+
+            // Find delivery boy by phone number
+            const userId = `delivery_${credentials.phone.replace(/\D/g, '')}`;
+            
+            try {
+              const userDoc = await getDoc(doc(db, 'users', userId));
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                
+                const deliveryBoyUser: User = {
+                  id: userId,
+                  name: userData.name,
+                  phone: userData.phone,
+                  role: 'delivery_boy',
+                  isOnline: userData.isOnline || false,
+                  currentLocation: userData.currentLocation,
+                  vehicleDetails: userData.vehicleDetails,
+                  earnings: userData.earnings || { total: 0, thisMonth: 0, thisWeek: 0 }
+                };
+                
+                setUser(deliveryBoyUser);
+                localStorage.setItem('currentUser', JSON.stringify(deliveryBoyUser));
+                
+                // Clear the OTP after successful login
+                localStorage.removeItem(`delivery_login_otp_${credentials.phone}`);
+                
+                console.log('Delivery boy logged in with OTP:', deliveryBoyUser);
+                
+                setLoading(false);
+                return true;
+              } else {
+                toast.error('Delivery partner not found. Please register first.');
+                setLoading(false);
+                return false;
+              }
+            } catch (error) {
+              console.error('Error accessing delivery boy document:', error);
+              toast.error('Login failed. Please try again.');
+              setLoading(false);
+              return false;
+            }
+          } else {
+            toast.error('Please provide either password or OTP for login');
             setLoading(false);
             return false;
           }
@@ -437,6 +519,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setLoading(true);
     
     try {
+      // Handle delivery boy registration differently
+      if (userData.role === 'delivery_boy') {
+        if (!userData.phone || !userData.name || !userData.password) {
+          toast.error('Name, phone number, and password are required');
+          setLoading(false);
+          return false;
+        }
+
+        const userId = `delivery_${userData.phone.replace(/\D/g, '')}`;
+        
+        // Check if delivery boy already exists
+        const existingUserDoc = await getDoc(doc(db, 'users', userId));
+        if (existingUserDoc.exists()) {
+          toast.error('Delivery partner with this phone number already exists');
+          setLoading(false);
+          return false;
+        }
+
+        // Create delivery boy user
+        const deliveryBoyData = {
+          id: userId,
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone,
+          password: userData.password, // In production, this should be hashed
+          role: 'delivery_boy',
+          vehicleDetails: userData.vehicleDetails,
+          address: userData.address,
+          idProof: userData.idProof,
+          emergencyContact: userData.emergencyContact,
+          isOnline: false,
+          earnings: userData.earnings || { total: 0, thisMonth: 0, thisWeek: 0 },
+          createdAt: new Date()
+        };
+
+        try {
+          await setDoc(doc(db, 'users', userId), deliveryBoyData);
+          toast.success('Delivery partner registration successful! You can now login.');
+          setLoading(false);
+          return true;
+        } catch (error) {
+          console.error('Error creating delivery boy:', error);
+          toast.error('Registration failed. Please try again.');
+          setLoading(false);
+          return false;
+        }
+      }
+
+      // Handle public user registration (existing logic)
       if (!userData.phone || !userData.name || !userData.otp) {
         toast.error('Name, phone number, and OTP are required');
         setLoading(false);
@@ -543,15 +674,102 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
      return false;
    };
 
+   const changeRestaurantOwnerPassword = async (newPassword: string): Promise<boolean> => {
+    if (!user || user.role !== 'restaurant_owner' || !user.restaurantId) {
+      toast.error('Only restaurant owners can change passwords');
+      return false;
+    }
+
+    try {
+      // Update the restaurant's owner password in Firestore
+      const restaurantRef = doc(db, 'restaurants', user.restaurantId);
+      await updateDoc(restaurantRef, {
+        'ownerCredentials.password': newPassword
+      });
+
+      toast.success('Password changed successfully!');
+      return true;
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error('Failed to change password. Please try again.');
+      return false;
+    }
+  };
+
+  // Aadhaar verification functions
+  const sendAadhaarOTP = async (aadhaarNumber: string): Promise<boolean> => {
+    try {
+      // For demo purposes, we'll simulate sending OTP
+      // In production, this should integrate with actual Aadhaar verification service
+      console.log(`Sending OTP to Aadhaar number: ${aadhaarNumber}`);
+      
+      // Store OTP in localStorage for demo (in production, this should be server-side)
+      const demoOTP = '123456';
+      localStorage.setItem(`aadhaar_otp_${aadhaarNumber}`, demoOTP);
+      
+      toast.success('OTP sent to your Aadhaar registered mobile number');
+      return true;
+    } catch (error) {
+      console.error('Error sending Aadhaar OTP:', error);
+      toast.error('Failed to send OTP. Please try again.');
+      return false;
+    }
+  };
+
+  const verifyAadhaarOTP = async (aadhaarNumber: string, otp: string): Promise<boolean> => {
+    try {
+      // For demo purposes, verify against stored OTP
+      const storedOTP = localStorage.getItem(`aadhaar_otp_${aadhaarNumber}`);
+      
+      if (storedOTP === otp) {
+        // Clear the OTP after successful verification
+        localStorage.removeItem(`aadhaar_otp_${aadhaarNumber}`);
+        toast.success('Aadhaar verification successful!');
+        return true;
+      } else {
+        toast.error('Invalid OTP. Please try again.');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error verifying Aadhaar OTP:', error);
+      toast.error('Verification failed. Please try again.');
+      return false;
+    }
+  };
+
+  // Delivery boy login OTP function
+  const sendDeliveryLoginOTP = async (phoneNumber: string): Promise<boolean> => {
+    try {
+      // For demo purposes, we'll simulate sending OTP
+      // In production, this should integrate with actual SMS service
+      console.log(`Sending login OTP to phone: ${phoneNumber}`);
+      
+      // Store OTP in localStorage for demo (in production, this should be server-side)
+      const demoOTP = '123456';
+      localStorage.setItem(`delivery_login_otp_${phoneNumber}`, demoOTP);
+      
+      toast.success('OTP sent to your registered mobile number');
+      return true;
+    } catch (error) {
+      console.error('Error sending delivery login OTP:', error);
+      toast.error('Failed to send OTP. Please try again.');
+      return false;
+    }
+  };
+
      const value: AuthContextType = {
-     user,
-     login,
-     register,
-     logout,
-     loading,
-     updateWalletBalance,
-     resetWalletBalanceToZero
-   };
+        user,
+        login,
+        register,
+        logout,
+        loading,
+        updateWalletBalance,
+        resetWalletBalanceToZero,
+        changeRestaurantOwnerPassword,
+        sendAadhaarOTP,
+        verifyAadhaarOTP,
+        sendDeliveryLoginOTP
+      };
 
   return (
     <AuthContext.Provider value={value}>
