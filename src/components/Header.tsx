@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Menu, X, User, LogOut, Shield, Store, Calendar, ShoppingCart, PartyPopper, Truck } from 'lucide-react';
+import { MapPin, Menu, X, User, LogOut, Shield, Store, Calendar, ShoppingCart, PartyPopper, Truck, HelpCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useCart } from '../contexts/CartContext';
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import BookTableModal from './booking/BookTableModal';
 import OrderFoodModal from './booking/OrderFoodModal';
 import EventBookingModal from './booking/EventBookingModal';
+import GeneralSupportChat from './chat/GeneralSupportChat';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
@@ -23,6 +24,7 @@ const Header: React.FC = () => {
   const [showDeliveryBoyAuth, setShowDeliveryBoyAuth] = useState(false);
   const [authType, setAuthType] = useState<'admin' | 'restaurant_owner' | 'public_user'>('public_user');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showSupportChat, setShowSupportChat] = useState(false);
 
   const handleAuthClick = (type: 'admin' | 'restaurant_owner' | 'public_user') => {
     setAuthType(type);
@@ -64,6 +66,16 @@ const Header: React.FC = () => {
       color: 'text-red-800 hover:text-red-900',
       action: () => {
         setShowEventBooking(true);
+        setIsMobileMenuOpen(false);
+      }
+    },
+    {
+      id: 'support',
+      title: 'Get Help',
+      icon: HelpCircle,
+      color: 'text-red-800 hover:text-red-900',
+      action: () => {
+        setShowSupportChat(true);
         setIsMobileMenuOpen(false);
       }
     }
@@ -365,6 +377,12 @@ const Header: React.FC = () => {
               onClose={() => setShowDeliveryBoyAuth(false)}
             />
           )}
+
+          {/* General Support Chat */}
+          <GeneralSupportChat
+            isOpen={showSupportChat}
+            onClose={() => setShowSupportChat(false)}
+          />
         </div>
       </header>
     </>

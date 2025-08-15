@@ -28,6 +28,7 @@ import { useCart } from '../contexts/CartContext';
 import BookTableModal from '../components/booking/BookTableModal';
 import OrderFoodModal from '../components/booking/OrderFoodModal';
 import EventBookingModal from '../components/booking/EventBookingModal';
+import FloatingChatButton from '../components/chat/FloatingChatButton';
 
 const HomePage: React.FC = () => {
   const { user } = useAuth();
@@ -538,6 +539,9 @@ const HomePage: React.FC = () => {
           selectedRestaurantId={selectedRestaurant}
         />
       )}
+
+      {/* Floating Chat Button for General Tabuloo Support */}
+      <FloatingChatButton />
     </div>
   );
 };

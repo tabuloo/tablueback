@@ -294,7 +294,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 name: `User_${credentials.phone.slice(-4)}`, // Generate a default name
                 phone: credentials.phone,
                 role: 'public_user',
-                walletBalance: 500.00, // Default wallet balance
+                walletBalance: 0.00, // Initial wallet balance starts at 0
                 createdAt: new Date()
               };
               
@@ -429,7 +429,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         name: userData.name,
         phone: userData.phone,
         role: 'public_user',
-        walletBalance: 500.00,
+        walletBalance: 0.00, // Initial wallet balance starts at 0
         createdAt: new Date()
       };
       

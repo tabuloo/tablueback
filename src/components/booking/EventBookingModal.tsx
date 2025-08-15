@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { X, Calendar, Clock, Users, PartyPopper, CreditCard, Plus, Trash2, CheckCircle, Wallet, Building, Smartphone, Banknote } from 'lucide-react';
+import { X, Calendar, Clock, Users, PartyPopper, CreditCard, Plus, Trash2, CheckCircle, Wallet, Building, Smartphone, Banknote, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { validateIndianPhoneNumber, formatPhoneNumber, validateCardNumber, formatCardNumber, validateCVV, formatCVV, validateExpiryDate, formatExpiryDate } from '../../utils/validation';
+import EventPlanningChat from '../chat/EventPlanningChat';
 
 interface EventBookingModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
   const { restaurants, addBooking } = useApp();
   const [step, setStep] = useState<'details' | 'payment' | 'confirmation'>('details');
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'netbanking' | 'card' | 'upi' | 'cod'>('card');
+  const [showChat, setShowChat] = useState(false);
   const [cardDetails, setCardDetails] = useState({
     number: '',
     expiry: '',
@@ -54,7 +56,16 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
 
   const handleCustomerCountChange = (count: string) => {
     const numCount = parseInt(count) || 1;
-    const names = Array(numCount).fill('').map((_, index) => formData.customerNames[index] || '');
+    let names;
+    
+    if (numCount <= 3) {
+      // For 1-3 persons: create array with exact number of names
+      names = Array(numCount).fill('').map((_, index) => formData.customerNames[index] || '');
+    } else {
+      // For 4+ persons: only ask for 3 names (first 2 required, 3rd optional)
+      names = Array(3).fill('').map((_, index) => formData.customerNames[index] || '');
+    }
+    
     setFormData(prev => ({ ...prev, customers: count, customerNames: names }));
   };
 
@@ -124,11 +135,12 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
         return false;
       }
     } else if (customerCount > 3) {
-      // For 4+ people: first 2 names mandatory, 3rd optional
+      // For 4+ people: first 2 names mandatory, 3rd optional (only 3 fields shown)
       if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
         toast.error('Please provide names for at least the first two attendees');
         return false;
       }
+      // Note: 3rd name is optional, so no validation needed
     }
 
     return true;
@@ -227,14 +239,34 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
       <div className="bg-white rounded-lg sm:rounded-xl w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center p-4 sm:p-6 border-b">
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center">
-            <PartyPopper className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-red-800" />
-            Event Management & Booking
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2">
-            <X className="h-5 w-5 sm:h-6 sm:w-6" />
-          </button>
+                 <div className="flex justify-between items-center p-4 sm:p-6 border-b">
+           <div>
+             <h2 className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center">
+               <PartyPopper className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-red-800" />
+               Event Management & Booking
+             </h2>
+             <p className="text-xs text-red-600 mt-1 flex items-center">
+               <HelpCircle className="h-3 w-3 mr-1" />
+               Need help? Click the help button for instant support!
+             </p>
+           </div>
+                     <div className="flex items-center space-x-2">
+             <div className="relative">
+               <button 
+                 onClick={() => setShowChat(true)}
+                 className="text-red-600 hover:text-red-700 p-2 transition-colors bg-red-50 rounded-full animate-pulse hover:animate-none"
+                 title="Get Help with Event Planning"
+               >
+                 <HelpCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+               </button>
+               {/* Blinking dot indicator */}
+               <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+               <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+             </div>
+             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2">
+               <X className="h-5 w-5 sm:h-6 sm:w-6" />
+             </button>
+           </div>
         </div>
 
         {step === 'details' && (
@@ -386,7 +418,7 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
                   )}
                   {parseInt(formData.customers) > 3 && (
                     <span className="text-xs sm:text-sm text-gray-500 ml-1">
-                      (First 2 required, 3rd optional)
+                      (First 2 required, 3rd optional - Only 3 names needed)
                     </span>
                   )}
                 </label>
@@ -415,15 +447,13 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
                     isRequired = true;
                     placeholder = `Attendee ${index + 1} name (required)`;
                   } else if (customerCount > 3) {
+                    // For 4+ persons: only show 3 fields, first 2 required, 3rd optional
                     if (index === 0 || index === 1) {
                       isRequired = true;
                       placeholder = `Attendee ${index + 1} name (required)`;
                     } else if (index === 2) {
                       isRequired = false;
                       placeholder = `Attendee ${index + 1} name (optional)`;
-                    } else {
-                      isRequired = false;
-                      placeholder = `Attendee ${index + 1} name`;
                     }
                   }
                   
@@ -450,6 +480,16 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
                   );
                 })}
               </div>
+              
+              {/* Help text for events with more than 3 attendees */}
+              {parseInt(formData.customers) > 3 && (
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">Note:</p>
+                    <p>For events with more than 3 attendees, we only need the names of the first 3 people (first 2 required, 3rd optional). This helps us prepare the venue and manage the booking efficiently.</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -731,6 +771,12 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
             </button>
           </div>
         )}
+
+        {/* Event Planning Chat */}
+        <EventPlanningChat 
+          isOpen={showChat} 
+          onClose={() => setShowChat(false)} 
+        />
       </div>
     </div>
   );
