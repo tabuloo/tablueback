@@ -24,18 +24,19 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
     cvv: '',
     name: ''
   });
-  const [formData, setFormData] = useState({
-    restaurantId: selectedRestaurantId || '',
-    occasion: '',
-    date: '',
-    time: '',
-    customers: '1',
-    customerNames: [''],
-    phone: user?.phone || '',
-    placeForEvent: '',
-    description: '',
-    specialRequests: ''
-  });
+     const [formData, setFormData] = useState({
+     restaurantId: selectedRestaurantId || '',
+     occasion: '',
+     date: '',
+     time: '',
+     customers: '1',
+     customerNames: [''],
+     customerPhones: [user?.phone || ''],
+     phone: user?.phone || '',
+     placeForEvent: '',
+     description: '',
+     specialRequests: ''
+   });
 
   const paymentMethods = [
     { id: 'wallet', name: 'Tabuloo Wallet', icon: Wallet, description: `Balance: ₹${(user?.walletBalance || 0).toFixed(2)}` },
@@ -54,44 +55,56 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
     'Housewarming', 'Festival Celebration', 'Other'
   ];
 
-  const handleCustomerCountChange = (count: string) => {
-    const numCount = parseInt(count) || 1;
-    let names;
-    
-    if (numCount <= 3) {
-      // For 1-3 persons: create array with exact number of names
-      names = Array(numCount).fill('').map((_, index) => formData.customerNames[index] || '');
-    } else {
-      // For 4+ persons: only ask for 3 names (first 2 required, 3rd optional)
-      names = Array(3).fill('').map((_, index) => formData.customerNames[index] || '');
-    }
-    
-    setFormData(prev => ({ ...prev, customers: count, customerNames: names }));
-  };
+     const handleCustomerCountChange = (count: string) => {
+     const numCount = parseInt(count) || 1;
+     let names;
+     let phones;
+     
+     if (numCount <= 3) {
+       // For 1-3 persons: create array with exact number of names and phones
+       names = Array(numCount).fill('').map((_, index) => formData.customerNames[index] || '');
+       phones = Array(numCount).fill('').map((_, index) => formData.customerPhones[index] || '');
+     } else {
+       // For 4+ persons: only ask for 3 names and phones (first 2 required, 3rd optional)
+       names = Array(3).fill('').map((_, index) => formData.customerNames[index] || '');
+       phones = Array(3).fill('').map((_, index) => formData.customerPhones[index] || '');
+     }
+     
+     setFormData(prev => ({ ...prev, customers: count, customerNames: names, customerPhones: phones }));
+   };
 
-  const handleNameChange = (index: number, name: string) => {
-    const updatedNames = [...formData.customerNames];
-    updatedNames[index] = name;
-    setFormData(prev => ({ ...prev, customerNames: updatedNames }));
-  };
+     const handleNameChange = (index: number, name: string) => {
+     const updatedNames = [...formData.customerNames];
+     updatedNames[index] = name;
+     setFormData(prev => ({ ...prev, customerNames: updatedNames }));
+   };
 
-  const addCustomerField = () => {
-    setFormData(prev => ({
-      ...prev,
-      customerNames: [...prev.customerNames, '']
-    }));
-  };
+   const handlePhoneChange = (index: number, phone: string) => {
+     const updatedPhones = [...formData.customerPhones];
+     updatedPhones[index] = phone;
+     setFormData(prev => ({ ...prev, customerPhones: updatedPhones }));
+   };
 
-  const removeCustomerField = (index: number) => {
-    if (formData.customerNames.length > 1) {
-      const updatedNames = formData.customerNames.filter((_, i) => i !== index);
-      setFormData(prev => ({
-        ...prev,
-        customerNames: updatedNames,
-        customers: updatedNames.length.toString()
-      }));
-    }
-  };
+     const addCustomerField = () => {
+     setFormData(prev => ({
+       ...prev,
+       customerNames: [...prev.customerNames, ''],
+       customerPhones: [...prev.customerPhones, '']
+     }));
+   };
+
+     const removeCustomerField = (index: number) => {
+     if (formData.customerNames.length > 1) {
+       const updatedNames = formData.customerNames.filter((_, i) => i !== index);
+       const updatedPhones = formData.customerPhones.filter((_, i) => i !== index);
+       setFormData(prev => ({
+         ...prev,
+         customerNames: updatedNames,
+         customerPhones: updatedPhones,
+         customers: updatedNames.length.toString()
+       }));
+     }
+   };
 
   const validateForm = () => {
     if (!selectedRestaurant) {
@@ -127,21 +140,54 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
         toast.error('Please provide the customer name');
         return false;
       }
-    } else if (customerCount === 2 || customerCount === 3) {
-      // For 2-3 people: all names required
-      const filledNames = formData.customerNames.filter(name => name.trim() !== '');
-      if (filledNames.length !== customerCount) {
-        toast.error('Please provide names for all attendees');
-        return false;
-      }
-    } else if (customerCount > 3) {
-      // For 4+ people: first 2 names mandatory, 3rd optional (only 3 fields shown)
-      if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
-        toast.error('Please provide names for at least the first two attendees');
-        return false;
-      }
-      // Note: 3rd name is optional, so no validation needed
-    }
+         } else if (customerCount === 2) {
+       // For 2 people: both names and phones required
+       if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
+         toast.error('Please provide names for both attendees');
+         return false;
+       }
+       if (!formData.customerPhones[0]?.trim() || !formData.customerPhones[1]?.trim()) {
+         toast.error('Please provide phone numbers for both attendees');
+         return false;
+       }
+       // Validate phone numbers
+       if (!validateIndianPhoneNumber(formData.customerPhones[0]) || !validateIndianPhoneNumber(formData.customerPhones[1])) {
+         toast.error('Please enter valid 10-digit Indian phone numbers for both attendees');
+         return false;
+       }
+     } else if (customerCount === 3) {
+       // For 3 people: first 2 names and phones mandatory, 3rd optional
+       if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
+         toast.error('Please provide names for at least the first two attendees');
+         return false;
+       }
+       if (!formData.customerPhones[0]?.trim() || !formData.customerPhones[1]?.trim()) {
+         toast.error('Please provide phone numbers for at least the first two attendees');
+         return false;
+       }
+       // Validate phone numbers for first 2
+       if (!validateIndianPhoneNumber(formData.customerPhones[0]) || !validateIndianPhoneNumber(formData.customerPhones[1])) {
+         toast.error('Please enter valid 10-digit Indian phone numbers for the first two attendees');
+         return false;
+       }
+       // Note: 3rd name and phone are optional, so no validation needed
+     } else if (customerCount > 3) {
+       // For 4+ people: first 2 names and phones mandatory, 3rd optional (only 3 fields shown)
+       if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
+         toast.error('Please provide names for at least the first two attendees');
+         return false;
+       }
+       if (!formData.customerPhones[0]?.trim() || !formData.customerPhones[1]?.trim()) {
+         toast.error('Please provide phone numbers for at least the first two attendees');
+         return false;
+       }
+       // Validate phone numbers for first 2
+       if (!validateIndianPhoneNumber(formData.customerPhones[0]) || !validateIndianPhoneNumber(formData.customerPhones[1])) {
+         toast.error('Please enter valid 10-digit Indian phone numbers for the first two attendees');
+         return false;
+       }
+       // Note: 3rd name and phone are optional, so no validation needed
+     }
 
     return true;
   };
@@ -191,25 +237,26 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
       updateWalletBalance((user.walletBalance || 0) - advanceAmount);
     }
 
-    const booking = {
-      userId: user.id,
-      restaurantId: formData.restaurantId,
-      type: 'event' as const,
-      date: formData.date,
-      time: formData.time,
-      customers: parseInt(formData.customers),
-      customerNames: formData.customerNames.filter(name => name.trim() !== ''),
-      phone: formData.phone,
-      status: 'confirmed' as const,
-      paymentStatus: 'paid' as const,
-      amount: advanceAmount,
-      createdAt: new Date(),
-      occasion: formData.occasion,
-      placeForEvent: formData.placeForEvent,
-      description: formData.description,
-      specialRequests: formData.specialRequests,
-      paymentMethod: paymentMethod
-    };
+         const booking = {
+       userId: user.id,
+       restaurantId: formData.restaurantId,
+       type: 'event' as const,
+       date: formData.date,
+       time: formData.time,
+       customers: parseInt(formData.customers),
+       customerNames: formData.customerNames.filter(name => name.trim() !== ''),
+       customerPhones: formData.customerPhones.filter(phone => phone.trim() !== ''),
+       phone: formData.phone,
+       status: 'confirmed' as const,
+       paymentStatus: 'paid' as const,
+       amount: advanceAmount,
+       createdAt: new Date(),
+       occasion: formData.occasion,
+       placeForEvent: formData.placeForEvent,
+       description: formData.description,
+       specialRequests: formData.specialRequests,
+       paymentMethod: paymentMethod
+     };
 
     try {
       await addBooking(booking);
@@ -396,32 +443,32 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
               </div>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  <Users className="h-4 w-4 inline mr-1" />
-                  Customer Details - Name of the Customers
-                  {parseInt(formData.customers) === 1 && (
-                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
-                      (Required)
-                    </span>
-                  )}
-                  {parseInt(formData.customers) === 2 && (
-                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
-                      (Both required)
-                    </span>
-                  )}
-                  {parseInt(formData.customers) === 3 && (
-                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
-                      (All three required)
-                    </span>
-                  )}
-                  {parseInt(formData.customers) > 3 && (
-                    <span className="text-xs sm:text-sm text-gray-500 ml-1">
-                      (First 2 required, 3rd optional - Only 3 names needed)
-                    </span>
-                  )}
-                </label>
+                         <div>
+               <div className="flex justify-between items-center mb-2">
+                 <label className="block text-sm font-medium text-gray-700">
+                   <Users className="h-4 w-4 inline mr-1" />
+                   Customer Details - Name of the Customers
+                   {parseInt(formData.customers) === 1 && (
+                     <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                       (Required)
+                     </span>
+                   )}
+                   {parseInt(formData.customers) === 2 && (
+                     <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                       (Both required)
+                     </span>
+                   )}
+                   {parseInt(formData.customers) === 3 && (
+                     <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                       (First 2 required, 3rd optional)
+                     </span>
+                   )}
+                   {parseInt(formData.customers) > 3 && (
+                     <span className="text-xs sm:text-sm text-gray-500 ml-1">
+                       (First 2 required, 3rd optional - Only 3 names needed)
+                     </span>
+                   )}
+                 </label>
                 {parseInt(formData.customers) <= 3 && (
                   <button
                     type="button"
@@ -440,44 +487,73 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
                   let isRequired = false;
                   let placeholder = '';
                   
-                  if (customerCount === 1) {
-                    isRequired = index === 0;
-                    placeholder = 'Attendee name (required)';
-                  } else if (customerCount === 2 || customerCount === 3) {
-                    isRequired = true;
-                    placeholder = `Attendee ${index + 1} name (required)`;
-                  } else if (customerCount > 3) {
-                    // For 4+ persons: only show 3 fields, first 2 required, 3rd optional
-                    if (index === 0 || index === 1) {
-                      isRequired = true;
-                      placeholder = `Attendee ${index + 1} name (required)`;
-                    } else if (index === 2) {
-                      isRequired = false;
-                      placeholder = `Attendee ${index + 1} name (optional)`;
-                    }
-                  }
+                                     if (customerCount === 1) {
+                     isRequired = index === 0;
+                     placeholder = 'Attendee name (required)';
+                   } else if (customerCount === 2) {
+                     isRequired = true;
+                     placeholder = `Attendee ${index + 1} name (required)`;
+                   } else if (customerCount === 3) {
+                     // For 3 persons: first 2 required, 3rd optional
+                     if (index === 0 || index === 1) {
+                       isRequired = true;
+                       placeholder = `Attendee ${index + 1} name (required)`;
+                     } else if (index === 2) {
+                       isRequired = false;
+                       placeholder = `Attendee ${index + 1} name (optional)`;
+                     }
+                   } else if (customerCount > 3) {
+                     // For 4+ persons: only show 3 fields, first 2 required, 3rd optional
+                     if (index === 0 || index === 1) {
+                       isRequired = true;
+                       placeholder = `Attendee ${index + 1} name (required)`;
+                     } else if (index === 2) {
+                       isRequired = false;
+                       placeholder = `Attendee ${index + 1} name (optional)`;
+                     }
+                   }
                   
-                  return (
-                    <div key={index} className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        placeholder={placeholder}
-                        value={name}
-                        onChange={(e) => handleNameChange(index, e.target.value)}
-                        className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
-                        required={isRequired}
-                      />
-                      {formData.customerNames.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeCustomerField(index)}
-                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  );
+                                     return (
+                     <div key={index} className="space-y-2">
+                       <div className="flex items-center space-x-2">
+                         <input
+                           type="text"
+                           placeholder={placeholder}
+                           value={name}
+                           onChange={(e) => handleNameChange(index, e.target.value)}
+                           className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                           required={isRequired}
+                         />
+                         {formData.customerNames.length > 1 && (
+                           <button
+                             type="button"
+                             onClick={() => removeCustomerField(index)}
+                             className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                           >
+                             <Trash2 className="h-4 w-4" />
+                           </button>
+                         )}
+                       </div>
+                       {/* Phone number field */}
+                       <div className="flex items-center space-x-2">
+                         <input
+                           type="tel"
+                           placeholder={`Attendee ${index + 1} phone number ${isRequired ? '(required)' : '(optional)'}`}
+                           value={formData.customerPhones[index] || ''}
+                           onChange={(e) => {
+                             const formatted = formatPhoneNumber(e.target.value);
+                             handlePhoneChange(index, formatted);
+                           }}
+                           className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                           required={isRequired}
+                           maxLength={10}
+                         />
+                         {formData.customerPhones[index] && !validateIndianPhoneNumber(formData.customerPhones[index]) && (
+                           <p className="text-red-500 text-sm">Invalid phone number</p>
+                         )}
+                       </div>
+                     </div>
+                   );
                 })}
               </div>
               
@@ -751,17 +827,32 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
               Your event has been confirmed. Booking details have been sent to both you and the venue via email.
             </p>
             
-            <div className="bg-red-50 p-4 rounded-lg mb-6 text-left">
-              <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">Event Details</h4>
-              <div className="text-xs sm:text-sm text-gray-600 space-y-1">
-                <p>Venue: {selectedRestaurant.name}</p>
-                <p>Occasion: {formData.occasion}</p>
-                <p>Date & Time: {formData.date} at {formData.time}</p>
-                <p>Attendees: {formData.customers}</p>
-                <p>Contact: {formData.phone}</p>
-                <p>Advance Paid: ₹{(selectedRestaurant.price * parseInt(formData.customers) * 1.5 * 0.2).toFixed(2)}</p>
-              </div>
-            </div>
+                         <div className="bg-red-50 p-4 rounded-lg mb-6 text-left">
+               <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">Event Details</h4>
+               <div className="text-xs sm:text-sm text-gray-600 space-y-1">
+                 <p>Venue: {selectedRestaurant.name}</p>
+                 <p>Occasion: {formData.occasion}</p>
+                 <p>Date & Time: {formData.date} at {formData.time}</p>
+                 <p>Attendees: {formData.customers}</p>
+                 <p>Contact: {formData.phone}</p>
+                 <p>Advance Paid: ₹{(selectedRestaurant.price * parseInt(formData.customers) * 1.5 * 0.2).toFixed(2)}</p>
+                 
+                 {/* Customer Details */}
+                 <div className="mt-3 pt-3 border-t border-red-200">
+                   <p className="font-medium text-red-800">Attendee Details:</p>
+                   {formData.customerNames.map((name, index) => {
+                     if (name.trim()) {
+                       return (
+                         <p key={index} className="text-xs">
+                           {name} - {formData.customerPhones[index] || 'No phone'}
+                         </p>
+                       );
+                     }
+                     return null;
+                   })}
+                 </div>
+               </div>
+             </div>
 
             <button
               onClick={onClose}

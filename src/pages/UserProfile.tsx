@@ -5,8 +5,8 @@ import { User, Phone, Mail, MapPin, Clock, Package, Calendar, Settings, Wallet, 
 import { validateIndianPhoneNumber, formatPhoneNumber } from '../utils/validation';
 import AddressForm from '../components/AddressForm';
 
-const UserProfile: React.FC = () => {
-  const { user, updateWalletBalance } = useAuth();
+ const UserProfile: React.FC = () => {
+   const { user, updateWalletBalance, resetWalletBalanceToZero } = useAuth();
   const { orders, bookings } = useApp();
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'bookings' | 'addresses' | 'wallet'>('profile');
   const [editMode, setEditMode] = useState(false);
@@ -472,13 +472,27 @@ const UserProfile: React.FC = () => {
                 <div className="p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
                     <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 sm:mb-0">Tabuloo Wallet</h2>
-                    <button
-                      onClick={() => setShowAddMoney(true)}
-                      className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2 text-sm"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>Add Money</span>
-                    </button>
+                    <div className="flex space-x-2">
+                      {user?.walletBalance !== 0 && (
+                        <button
+                          onClick={async () => {
+                            if (confirm('Reset wallet balance to ₹0? This action cannot be undone.')) {
+                              await resetWalletBalanceToZero();
+                            }
+                          }}
+                          className="bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 flex items-center justify-center space-x-2 text-sm"
+                        >
+                          <span>Reset to ₹0</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowAddMoney(true)}
+                        className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2 text-sm"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add Money</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Wallet Balance Card */}
