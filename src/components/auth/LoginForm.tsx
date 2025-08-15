@@ -272,9 +272,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLogin
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Enter admin credentials"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Use: 9985121257 or tablooofficial1@gmail.com
-              </p>
             </div>
 
             <div>
@@ -289,9 +286,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLogin
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Enter admin password"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Demo password: admin123
-              </p>
             </div>
           </>
         )}
