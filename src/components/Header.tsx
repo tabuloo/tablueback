@@ -70,6 +70,16 @@ const Header: React.FC = () => {
       }
     },
     {
+      id: 'event-planning',
+      title: 'Event Planning',
+      icon: PartyPopper,
+      color: 'text-red-800 hover:text-red-900',
+      action: () => {
+        navigate('/event-planning');
+        setIsMobileMenuOpen(false);
+      }
+    },
+    {
       id: 'support',
       title: 'Get Help',
       icon: HelpCircle,
@@ -85,18 +95,18 @@ const Header: React.FC = () => {
     <>
       <header className="bg-white shadow-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-16 gap-4">
             {/* Logo Section */}
-            <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/')}>
+            <div className="flex items-center flex-shrink-0">
+              <div className="flex items-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/')}>
                 <img 
                   src="/tabuloo-logo.png" 
                   alt="Tabuloo" 
-                  className="h-12 w-auto mr-2 sm:h-16 sm:mr-3"
+                  className="h-10 w-auto mr-2 sm:h-12 sm:mr-3"
                 />
                 <div className="flex items-center">
                   <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-red-800 mr-1 sm:mr-2" />
-                  <span className="text-xl sm:text-2xl font-black bg-gradient-to-r from-red-800 to-red-900 bg-clip-text text-transparent tracking-wide">
+                  <span className="text-lg sm:text-xl font-black bg-gradient-to-r from-red-800 to-red-900 bg-clip-text text-transparent tracking-wide">
                     TABULOO
                   </span>
                 </div>
@@ -104,20 +114,20 @@ const Header: React.FC = () => {
             </div>
             
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-6">
               {/* Quick Actions - Only show for public users */}
               {user && user.role === 'public_user' && (
-                <div className="flex items-center space-x-6">
+                <div className="flex items-center space-x-3">
                   {quickActions.map((action) => {
                     const Icon = action.icon;
                     return (
                       <button
                         key={action.id}
                         onClick={action.action}
-                        className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all hover:bg-red-50 ${action.color}`}
+                        className={`flex items-center space-x-2 px-2 py-2 rounded-lg transition-all hover:bg-red-50 ${action.color} text-xs lg:text-sm`}
                       >
-                        <Icon className="h-5 w-5" />
-                        <span className="font-medium">{action.title}</span>
+                        <Icon className="h-4 w-4" />
+                        <span className="font-medium hidden lg:inline">{action.title}</span>
                       </button>
                     );
                   })}

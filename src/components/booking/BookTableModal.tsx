@@ -28,6 +28,7 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
     time: '',
     customers: '1',
     customerNames: [''],
+    customerPhones: [user?.phone || ''],
     phone: user?.phone || '',
     specialRequests: '',
     foodOptions: ''
@@ -66,8 +67,20 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
 
   const handleCustomerCountChange = (count: string) => {
     const numCount = parseInt(count) || 1;
-    const names = Array(numCount).fill('').map((_, index) => formData.customerNames[index] || '');
-    setFormData(prev => ({ ...prev, customers: count, customerNames: names }));
+    let names;
+    let phones;
+    
+    if (numCount <= 3) {
+      // For 1-3 persons: create array with exact number of names and phones
+      names = Array(numCount).fill('').map((_, index) => formData.customerNames[index] || '');
+      phones = Array(numCount).fill('').map((_, index) => formData.customerPhones[index] || '');
+    } else {
+      // For 4+ persons: only ask for 3 names and phones (first 2 required, 3rd optional)
+      names = Array(3).fill('').map((_, index) => formData.customerNames[index] || '');
+      phones = Array(3).fill('').map((_, index) => formData.customerPhones[index] || '');
+    }
+    
+    setFormData(prev => ({ ...prev, customers: count, customerNames: names, customerPhones: phones }));
   };
 
   const handleNameChange = (index: number, name: string) => {
@@ -76,19 +89,28 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
     setFormData(prev => ({ ...prev, customerNames: updatedNames }));
   };
 
+  const handlePhoneChange = (index: number, phone: string) => {
+    const updatedPhones = [...formData.customerPhones];
+    updatedPhones[index] = phone;
+    setFormData(prev => ({ ...prev, customerPhones: updatedPhones }));
+  };
+
   const addCustomerField = () => {
     setFormData(prev => ({
       ...prev,
-      customerNames: [...prev.customerNames, '']
+      customerNames: [...prev.customerNames, ''],
+      customerPhones: [...prev.customerPhones, '']
     }));
   };
 
   const removeCustomerField = (index: number) => {
     if (formData.customerNames.length > 1) {
       const updatedNames = formData.customerNames.filter((_, i) => i !== index);
+      const updatedPhones = formData.customerPhones.filter((_, i) => i !== index);
       setFormData(prev => ({
         ...prev,
         customerNames: updatedNames,
+        customerPhones: updatedPhones,
         customers: updatedNames.length.toString()
       }));
     }
@@ -131,26 +153,71 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
 
     const customerCount = parseInt(formData.customers);
     
-    // Validation logic for customer names
+    // Validation logic for customer names and phones
     if (customerCount === 1) {
-      // For 1 person: only first name required
+      // For 1 person: only first name and phone required
       if (!formData.customerNames[0]?.trim()) {
         toast.error('Please provide the customer name');
         return false;
       }
-    } else if (customerCount === 2 || customerCount === 3) {
-      // For 2-3 people: all names required
+      if (!formData.customerPhones[0]?.trim()) {
+        toast.error('Please provide the customer phone number');
+        return false;
+      }
+      if (!validateIndianPhoneNumber(formData.customerPhones[0])) {
+        toast.error('Please enter a valid 10-digit Indian phone number for the customer');
+        return false;
+      }
+    } else if (customerCount === 2) {
+      // For 2 people: both names and phones required
+      if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
+        toast.error('Please provide names for both customers');
+        return false;
+      }
+      if (!formData.customerPhones[0]?.trim() || !formData.customerPhones[1]?.trim()) {
+        toast.error('Please provide phone numbers for both customers');
+        return false;
+      }
+      // Validate phone numbers
+      if (!validateIndianPhoneNumber(formData.customerPhones[0]) || !validateIndianPhoneNumber(formData.customerPhones[1])) {
+        toast.error('Please enter valid 10-digit Indian phone numbers for both customers');
+        return false;
+      }
+    } else if (customerCount === 3) {
+      // For 3 people: all names and phones required
       const filledNames = formData.customerNames.filter(name => name.trim() !== '');
+      const filledPhones = formData.customerPhones.filter(phone => phone.trim() !== '');
       if (filledNames.length !== customerCount) {
         toast.error('Please provide names for all customers');
         return false;
       }
+      if (filledPhones.length !== customerCount) {
+        toast.error('Please provide phone numbers for all customers');
+        return false;
+      }
+      // Validate phone numbers
+      for (let i = 0; i < customerCount; i++) {
+        if (!validateIndianPhoneNumber(formData.customerPhones[i])) {
+          toast.error(`Please enter a valid 10-digit Indian phone number for customer ${i + 1}`);
+          return false;
+        }
+      }
     } else if (customerCount > 3) {
-      // For 4+ people: first 2 names mandatory, 3rd optional
+      // For 4+ people: first 2 names and phones mandatory, 3rd optional (only 3 fields shown)
       if (!formData.customerNames[0]?.trim() || !formData.customerNames[1]?.trim()) {
         toast.error('Please provide names for at least the first two customers');
         return false;
       }
+      if (!formData.customerPhones[0]?.trim() || !formData.customerPhones[1]?.trim()) {
+        toast.error('Please provide phone numbers for at least the first two customers');
+        return false;
+      }
+      // Validate phone numbers for first 2
+      if (!validateIndianPhoneNumber(formData.customerPhones[0]) || !validateIndianPhoneNumber(formData.customerPhones[1])) {
+        toast.error('Please enter valid 10-digit Indian phone numbers for the first two customers');
+        return false;
+      }
+      // Note: 3rd name and phone are optional, so no validation needed
     }
 
     // Check if at least one menu item is selected
@@ -213,6 +280,7 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
       time: formData.time,
       customers: parseInt(formData.customers),
       customerNames: formData.customerNames.filter(name => name.trim() !== ''),
+      customerPhones: formData.customerPhones.filter(phone => phone.trim() !== ''),
       phone: formData.phone,
       status: 'confirmed' as const,
       paymentStatus: 'paid' as const,
@@ -369,6 +437,16 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
                   className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
                 />
               </div>
+              
+              {/* Help text for events with more than 3 attendees */}
+              {parseInt(formData.customers) > 3 && (
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">Note:</p>
+                    <p>For bookings with more than 3 customers, we only need the names and phone numbers of the first 3 people (first 2 required, 3rd optional). This helps us prepare the table and manage the booking efficiently.</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -450,24 +528,44 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
                   }
                   
                   return (
-                    <div key={index} className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        placeholder={placeholder}
-                        value={name}
-                        onChange={(e) => handleNameChange(index, e.target.value)}
-                        className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
-                        required={isRequired}
-                      />
-                      {formData.customerNames.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeCustomerField(index)}
-                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
+                    <div key={index} className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          placeholder={placeholder}
+                          value={name}
+                          onChange={(e) => handleNameChange(index, e.target.value)}
+                          className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                          required={isRequired}
+                        />
+                        {formData.customerNames.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeCustomerField(index)}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {/* Phone number field */}
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="tel"
+                          placeholder={`Customer ${index + 1} phone number ${isRequired ? '(required)' : '(optional)'}`}
+                          value={formData.customerPhones[index] || ''}
+                          onChange={(e) => {
+                            const formatted = formatPhoneNumber(e.target.value);
+                            handlePhoneChange(index, formatted);
+                          }}
+                          className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                          required={isRequired}
+                          maxLength={10}
+                        />
+                        {formData.customerPhones[index] && !validateIndianPhoneNumber(formData.customerPhones[index]) && (
+                          <p className="text-red-500 text-sm">Invalid phone number</p>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -749,6 +847,21 @@ const BookTableModal: React.FC<BookTableModalProps> = ({ isOpen, onClose, select
                 <p>Selected Items: {Object.values(selectedMenuItems).reduce((sum, qty) => sum + qty, 0)}</p>
                 <p>Total Menu Cost: ₹{getTotalMenuCost().toFixed(2)}</p>
                 <p>Advance Paid: ₹{getBookingPrice().toFixed(2)}</p>
+                
+                {/* Customer Details */}
+                <div className="mt-3 pt-3 border-t border-green-200">
+                  <p className="font-medium text-green-800">Customer Details:</p>
+                  {formData.customerNames.map((name, index) => {
+                    if (name.trim()) {
+                      return (
+                        <p key={index} className="text-xs">
+                          {name} - {formData.customerPhones[index] || 'No phone'}
+                        </p>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
               </div>
             </div>
 

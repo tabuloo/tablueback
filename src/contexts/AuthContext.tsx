@@ -40,6 +40,16 @@ interface User {
     number: string;
     model?: string;
   };
+  // New delivery boy fields
+  profilePhoto?: File | null;
+  panCardPhoto?: File | null;
+  aadhaarCardPhoto?: File | null;
+  bankDetails?: {
+    method: 'bank' | 'upi';
+    accountNumber?: string;
+    ifscCode?: string;
+    upiId?: string;
+  };
   earnings?: {
     total: number;
     thisMonth: number;
@@ -48,18 +58,19 @@ interface User {
 }
 
  interface AuthContextType {
-   user: User | null;
-   login: (credentials: any, role: string) => Promise<boolean>;
-   register: (userData: any) => Promise<boolean>;
-   logout: () => void;
-   loading: boolean;
-   updateWalletBalance: (newBalance: number) => void;
-   resetWalletBalanceToZero: () => Promise<boolean>;
-   changeRestaurantOwnerPassword: (newPassword: string) => Promise<boolean>;
-   sendAadhaarOTP: (aadhaarNumber: string) => Promise<boolean>;
-   verifyAadhaarOTP: (aadhaarNumber: string, otp: string) => Promise<boolean>;
-   sendDeliveryLoginOTP: (phoneNumber: string) => Promise<boolean>;
- }
+  user: User | null;
+  login: (credentials: any, role: string) => Promise<boolean>;
+  register: (userData: any) => Promise<boolean>;
+  logout: () => void;
+  loading: boolean;
+  updateUser: (userData: Partial<User>) => Promise<boolean>;
+  updateWalletBalance: (newBalance: number) => void;
+  resetWalletBalanceToZero: () => Promise<boolean>;
+  changeRestaurantOwnerPassword: (newPassword: string) => Promise<boolean>;
+
+  sendDeliveryLoginOTP: (phoneNumber: string) => Promise<boolean>;
+  isDefaultUsername: (username: string) => boolean;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -549,6 +560,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           address: userData.address,
           idProof: userData.idProof,
           emergencyContact: userData.emergencyContact,
+          // New fields
+          profilePhoto: userData.profilePhoto,
+          panCardPhoto: userData.panCardPhoto,
+          aadhaarCardPhoto: userData.aadhaarCardPhoto,
+          bankDetails: userData.bankDetails,
           isOnline: false,
           earnings: userData.earnings || { total: 0, thisMonth: 0, thisWeek: 0 },
           createdAt: new Date()
@@ -696,48 +712,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Aadhaar verification functions
-  const sendAadhaarOTP = async (aadhaarNumber: string): Promise<boolean> => {
-    try {
-      // For demo purposes, we'll simulate sending OTP
-      // In production, this should integrate with actual Aadhaar verification service
-      console.log(`Sending OTP to Aadhaar number: ${aadhaarNumber}`);
-      
-      // Store OTP in localStorage for demo (in production, this should be server-side)
-      const demoOTP = '123456';
-      localStorage.setItem(`aadhaar_otp_${aadhaarNumber}`, demoOTP);
-      
-      toast.success('OTP sent to your Aadhaar registered mobile number');
-      return true;
-    } catch (error) {
-      console.error('Error sending Aadhaar OTP:', error);
-      toast.error('Failed to send OTP. Please try again.');
-      return false;
-    }
-  };
 
-  const verifyAadhaarOTP = async (aadhaarNumber: string, otp: string): Promise<boolean> => {
-    try {
-      // For demo purposes, verify against stored OTP
-      const storedOTP = localStorage.getItem(`aadhaar_otp_${aadhaarNumber}`);
-      
-      if (storedOTP === otp) {
-        // Clear the OTP after successful verification
-        localStorage.removeItem(`aadhaar_otp_${aadhaarNumber}`);
-        toast.success('Aadhaar verification successful!');
-        return true;
-      } else {
-        toast.error('Invalid OTP. Please try again.');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error verifying Aadhaar OTP:', error);
-      toast.error('Verification failed. Please try again.');
-      return false;
-    }
-  };
 
-  // Delivery boy login OTP function
+    // Delivery boy login OTP function
   const sendDeliveryLoginOTP = async (phoneNumber: string): Promise<boolean> => {
     try {
       // For demo purposes, we'll simulate sending OTP
@@ -757,19 +734,54 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-     const value: AuthContextType = {
-        user,
-        login,
-        register,
-        logout,
-        loading,
-        updateWalletBalance,
-        resetWalletBalanceToZero,
-        changeRestaurantOwnerPassword,
-        sendAadhaarOTP,
-        verifyAadhaarOTP,
-        sendDeliveryLoginOTP
-      };
+  // Update user profile function
+  const updateUser = async (userData: Partial<User>): Promise<boolean> => {
+    if (!user) {
+      toast.error('No user logged in');
+      return false;
+    }
+
+    try {
+      // Update user data in Firestore
+      await updateDoc(doc(db, 'users', user.id), userData);
+      
+      // Update local user state
+      const updatedUser = { ...user, ...userData };
+      setUser(updatedUser);
+      
+      // Update localStorage
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      
+      toast.success('Profile updated successfully!');
+      return true;
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      toast.error('Failed to update profile. Please try again.');
+      return false;
+    }
+  };
+
+  // Check if username is a default generated name
+  const isDefaultUsername = (username: string): boolean => {
+    // Check for patterns like "User_1234", "User_5678", etc.
+    const defaultUsernamePattern = /^User_\d{4}$/;
+    return defaultUsernamePattern.test(username);
+  };
+
+        const value: AuthContextType = {
+      user,
+      login,
+      register,
+      logout,
+      loading,
+      updateUser,
+      updateWalletBalance,
+      resetWalletBalanceToZero,
+      changeRestaurantOwnerPassword,
+      
+      sendDeliveryLoginOTP,
+      isDefaultUsername
+    };
 
   return (
     <AuthContext.Provider value={value}>

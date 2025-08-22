@@ -256,6 +256,20 @@ const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLogin
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Enter password"
               />
+              <div className="text-right mt-1">
+                <button
+                  type="button"
+                  className="text-sm text-blue-600 hover:text-blue-700"
+                  onClick={() => {
+                    const subject = encodeURIComponent('Password reset request - Restaurant Owner');
+                    const body = encodeURIComponent(`Hello Admin,\n\nI forgot my restaurant owner password. Please reset my credentials and share them to this email.\n\nUsername: ${formData.username || '(not provided)'}\nRole: restaurant_owner\n\nThank you.`);
+                    const url = `https://mail.google.com/mail/?view=cm&to=tablooofficial1@gmail.com&su=${subject}&body=${body}`;
+                    window.open(url, '_blank');
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
             </div>
           </>
         ) : (
@@ -298,6 +312,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ role, onSwitchToRegister, onLogin
             <LogIn className="h-4 w-4" />
             <span>Login</span>
           </button>
+        )}
+
+        {role === 'restaurant_owner' && (
+          <div className="text-center pt-4">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <button
+                type="button"
+                onClick={() => window.location.href = '/restaurant-owner'}
+                className="text-orange-600 hover:text-orange-700 font-medium"
+              >
+                Register here
+              </button>
+            </p>
+          </div>
         )}
 
         {role === 'public_user' && onSwitchToRegister && (

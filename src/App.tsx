@@ -20,6 +20,7 @@ import RefundPolicy from './pages/RefundPolicy';
 import ShippingPolicy from './pages/ShippingPolicy';
 import AboutUs from './pages/AboutUs';
 import ContactUs from './pages/ContactUs';
+import EventPlanning from './pages/EventPlanning';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
@@ -69,12 +70,17 @@ const AppContent: React.FC = () => {
               )
             } 
           />
+          <Route 
+            path="/restaurant-owner" 
+            element={<RestaurantOwnerDashboard />} 
+          />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-conditions" element={<TermsConditions />} />
         <Route path="/refund-policy" element={<RefundPolicy />} />
         <Route path="/shipping-policy" element={<ShippingPolicy />} />
         <Route path="/about-us" element={<AboutUs />} />
-        <Route path="/contact-us" element={<ContactUs />} />
+                  <Route path="/contact-us" element={<ContactUs />} />
+          <Route path="/event-planning" element={<EventPlanning />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

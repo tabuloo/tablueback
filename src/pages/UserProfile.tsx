@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { User, Phone, Mail, MapPin, Clock, Package, Calendar, Settings, Wallet, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
@@ -6,7 +6,7 @@ import { validateIndianPhoneNumber, formatPhoneNumber } from '../utils/validatio
 import AddressForm from '../components/AddressForm';
 
  const UserProfile: React.FC = () => {
-   const { user, updateWalletBalance, resetWalletBalanceToZero } = useAuth();
+   const { user, updateUser, isDefaultUsername } = useAuth();
   const { orders, bookings } = useApp();
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'bookings' | 'addresses' | 'wallet'>('profile');
   const [editMode, setEditMode] = useState(false);
@@ -18,35 +18,38 @@ import AddressForm from '../components/AddressForm';
   const [addresses, setAddresses] = useState<any[]>([]);
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null);
-  const [showAddMoney, setShowAddMoney] = useState(false);
-  const [addMoneyAmount, setAddMoneyAmount] = useState('');
 
-  // Dynamic wallet transactions - empty for now
-  const walletTransactions: any[] = [];
+  // Sync profileData with user data when user changes
+  useEffect(() => {
+    if (user) {
+      setProfileData({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || ''
+      });
+    }
+  }, [user]);
 
   const userOrders = orders.filter(order => order.userId === user?.id);
   const userBookings = bookings.filter(booking => booking.userId === user?.id);
 
-  const handleAddMoney = () => {
-    const amount = parseFloat(addMoneyAmount);
-    if (amount > 0 && user?.walletBalance !== undefined) {
-      const newBalance = user.walletBalance + amount;
-      updateWalletBalance(newBalance);
-      setShowAddMoney(false);
-      setAddMoneyAmount('');
-      // In a real app, this would integrate with a payment gateway
-    }
-  };
 
-  const handleProfileUpdate = () => {
+
+  const handleProfileUpdate = async () => {
     if (profileData.phone && !validateIndianPhoneNumber(profileData.phone)) {
       alert('Please enter a valid 10-digit Indian phone number');
       return;
     }
     
-    // In a real app, this would update the user in the database
-    setEditMode(false);
-    // You could call updateUser function here
+    // Update user profile in database
+    const success = await updateUser({
+      name: profileData.name,
+      phone: profileData.phone
+    });
+    
+    if (success) {
+      setEditMode(false);
+    }
   };
 
   const handleSaveAddress = (addressData: any) => {
@@ -99,6 +102,32 @@ import AddressForm from '../components/AddressForm';
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Profile</h1>
           <p className="text-gray-600 mt-2 text-sm sm:text-base">Manage your account and view your activity</p>
         </div>
+
+        {/* Default Username Alert */}
+        {isDefaultUsername(user.name) && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                  <span className="text-red-600 text-sm font-semibold">!</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-red-800 mb-1">
+                  Update Your Profile Name
+                </h3>
+                <p className="text-sm text-red-700 mb-3">
+                  You're currently using a temporary username. Please update your name below to personalize your profile and improve your experience.
+                </p>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
+                    Current: {user.name}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mobile: Tab Navigation */}
         <div className="lg:hidden mb-6">
@@ -209,22 +238,47 @@ import AddressForm from '../components/AddressForm';
                   </div>
 
                   <div className="space-y-4 sm:space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <User className="h-4 w-4 inline mr-1" />
-                        Full Name
-                      </label>
-                      {editMode ? (
-                        <input
-                          type="text"
-                          value={profileData.name}
-                          onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        />
-                      ) : (
-                        <p className="text-gray-900 px-3 py-2 bg-gray-50 rounded-lg text-sm">{profileData.name}</p>
-                      )}
-                    </div>
+                                         <div>
+                       <label className="block text-sm font-medium text-gray-700 mb-2">
+                         <User className="h-4 w-4 inline mr-1" />
+                         Full Name
+                         {isDefaultUsername(profileData.name) && (
+                           <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                             Temporary
+                           </span>
+                         )}
+                       </label>
+                       {editMode ? (
+                         <input
+                           type="text"
+                           value={profileData.name}
+                           onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
+                           placeholder={isDefaultUsername(profileData.name) ? "Enter your real name" : "Enter your name"}
+                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm ${
+                             isDefaultUsername(profileData.name) 
+                               ? 'border-yellow-300 bg-yellow-50 focus:ring-yellow-500' 
+                               : 'border-gray-300'
+                           }`}
+                         />
+                       ) : (
+                         <div className="relative">
+                           <p className={`px-3 py-2 rounded-lg text-sm ${
+                             isDefaultUsername(profileData.name) 
+                               ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' 
+                               : 'bg-gray-50 text-gray-900'
+                           }`}>
+                             {profileData.name}
+                           </p>
+                           {isDefaultUsername(profileData.name) && (
+                             <div className="absolute -top-2 -right-2">
+                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                 Temporary
+                               </span>
+                             </div>
+                           )}
+                         </div>
+                       )}
+                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -470,93 +524,68 @@ import AddressForm from '../components/AddressForm';
               {/* Wallet Tab */}
               {activeTab === 'wallet' && (
                 <div className="p-4 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
-                    <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 sm:mb-0">Tabuloo Wallet</h2>
-                    <div className="flex space-x-2">
-                      {user?.walletBalance !== 0 && (
-                        <button
-                          onClick={async () => {
-                            if (confirm('Reset wallet balance to ₹0? This action cannot be undone.')) {
-                              await resetWalletBalanceToZero();
-                            }
-                          }}
-                          className="bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 flex items-center justify-center space-x-2 text-sm"
-                        >
-                          <span>Reset to ₹0</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setShowAddMoney(true)}
-                        className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2 text-sm"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>Add Money</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Wallet Balance Card */}
-                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 sm:p-6 rounded-xl mb-4 sm:mb-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-blue-100 text-xs sm:text-sm">Available Balance</p>
-                        <p className="text-2xl sm:text-3xl font-bold">₹{(user?.walletBalance || 0).toFixed(2)}</p>
+                  {/* Coming Soon Page */}
+                  <div className="text-center py-12 sm:py-16">
+                    <div className="max-w-md mx-auto">
+                      {/* Icon */}
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Wallet className="h-10 w-10 sm:h-12 sm:w-12 text-white" />
                       </div>
-                      <Wallet className="h-8 w-8 sm:h-12 sm:w-12 text-blue-200" />
-                    </div>
-                    <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                      <button
-                        onClick={() => setShowAddMoney(true)}
-                        className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors text-sm"
-                      >
-                        Add Money
-                      </button>
-                      <button className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors text-sm">
-                        Send Money
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Transaction History */}
-                  <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Recent Transactions</h3>
-                    {walletTransactions.length === 0 ? (
-                      <div className="text-center py-8">
-                        <Wallet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions yet</h3>
-                        <p className="text-gray-600">Your transaction history will appear here</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        {walletTransactions.map((transaction) => (
-                          <div key={transaction.id} className="flex items-center justify-between p-3 sm:p-4 border rounded-lg">
-                            <div className="flex items-center space-x-2 sm:space-x-3">
-                              <div className={`p-1.5 sm:p-2 rounded-full ${
-                                transaction.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
-                              }`}>
-                                {transaction.type === 'credit' ? (
-                                  <ArrowDownLeft className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
-                                ) : (
-                                  <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
-                                )}
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900 text-sm">{transaction.description}</p>
-                                <p className="text-xs sm:text-sm text-gray-500">{transaction.date}</p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className={`font-semibold text-sm ${
-                                transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                              }`}>
-                                {transaction.type === 'credit' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
-                              </p>
-                              <p className="text-xs sm:text-sm text-gray-500 capitalize">{transaction.status}</p>
-                            </div>
+                      
+                      {/* Main Text */}
+                      <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
+                        Coming Soon!
+                      </h2>
+                      
+                      {/* Description */}
+                      <p className="text-gray-600 text-base sm:text-lg mb-6 leading-relaxed">
+                        We're working hard to bring you an amazing digital wallet experience. 
+                        Stay tuned for exciting features like secure payments, instant transfers, 
+                        and much more!
+                      </p>
+                      
+                      {/* Features Preview */}
+                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6">
+                        <h3 className="font-semibold text-gray-900 mb-3 text-sm sm:text-base">
+                          What's Coming:
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="text-gray-600">Secure Digital Wallet</span>
                           </div>
-                        ))}
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="text-gray-600">Instant Money Transfer</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="text-gray-600">Bill Payments</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="text-gray-600">Transaction History</span>
+                          </div>
+                        </div>
                       </div>
-                    )}
+                      
+                      {/* Notification Signup */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p className="text-blue-800 text-sm mb-3">
+                          Get notified when the wallet launches!
+                        </p>
+                        <div className="flex space-x-2">
+                          <input
+                            type="email"
+                            placeholder="Enter your email"
+                            className="flex-1 px-3 py-2 border border-blue-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors">
+                            Notify Me
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -581,62 +610,7 @@ import AddressForm from '../components/AddressForm';
           </div>
         )}
 
-        {/* Add Money Modal */}
-        {showAddMoney && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md">
-              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Add Money to Wallet</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Amount (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    value={addMoneyAmount}
-                    onChange={(e) => setAddMoneyAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    placeholder="Enter amount"
-                  />
-                </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  {[10, 25, 50, 100, 200, 500].map((amount) => (
-                    <button
-                      key={amount}
-                      onClick={() => setAddMoneyAmount(amount.toString())}
-                      className="px-2 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs sm:text-sm"
-                    >
-                      ₹{amount}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 mt-4 sm:mt-6">
-                <button
-                  onClick={() => {
-                    setShowAddMoney(false);
-                    setAddMoneyAmount('');
-                  }}
-                  className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddMoney}
-                  disabled={!addMoneyAmount || parseFloat(addMoneyAmount) <= 0}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  Add Money
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

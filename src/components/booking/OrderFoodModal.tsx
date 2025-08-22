@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCart } from '../../contexts/CartContext';
 import { X, ShoppingCart, Plus, Minus, MapPin, Truck, CreditCard, CheckCircle, Wallet, Building, Smartphone, Banknote, Navigation } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { validateIndianPhoneNumber, formatPhoneNumber, validateCardNumber, formatCardNumber, validateCVV, formatCVV, validateExpiryDate, formatExpiryDate } from '../../utils/validation';
+import GoogleMapPicker from '../GoogleMapPicker';
 
 interface OrderFoodModalProps {
   isOpen: boolean;
@@ -17,8 +20,10 @@ interface CartItem {
 }
 
 const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, selectedRestaurantId }) => {
+  const navigate = useNavigate();
   const { user, updateWalletBalance } = useAuth();
   const { restaurants, menuItems, addOrder } = useApp();
+  const { addToCart: addToMainCart } = useCart();
   const [activeRestaurant, setActiveRestaurant] = useState(selectedRestaurantId || '');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [step, setStep] = useState<'restaurants' | 'menu' | 'checkout' | 'address' | 'payment' | 'confirmation'>('restaurants');
@@ -37,6 +42,8 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
   });
 
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [showMap, setShowMap] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{lat: number, lng: number, address: string, formattedAddress: string} | null>(null);
 
   const paymentMethods = [
     { id: 'wallet', name: 'Tabuloo Wallet', icon: Wallet, description: `Balance: ₹${(user?.walletBalance || 0).toFixed(2)}` },
@@ -62,6 +69,32 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
       return [...prev, { id: itemId, quantity: 1 }];
     });
     toast.success('Added to cart!');
+  };
+
+  const addToMainCartAndRedirect = (itemId: string) => {
+    const menuItem = menuItems.find(item => item.id === itemId);
+    if (menuItem) {
+      addToMainCart({
+        id: menuItem.id,
+        name: menuItem.name,
+        price: menuItem.price,
+        image: menuItem.image,
+        restaurantId: menuItem.restaurantId,
+        restaurantName: restaurants.find(r => r.id === activeRestaurant)?.name || '',
+        category: menuItem.category,
+        itemCategory: menuItem.itemCategory
+      });
+      
+      toast.success('Item added to cart! Redirecting to checkout...');
+      
+      // Close the modal
+      onClose();
+      
+      // Redirect to cart page after a short delay
+      setTimeout(() => {
+        navigate('/cart');
+      }, 1000);
+    }
   };
 
   const updateCartQuantity = (itemId: string, change: number) => {
@@ -101,7 +134,34 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
       toast.error('Your cart is empty');
       return;
     }
-    setStep('checkout');
+
+    // Add all cart items to the main cart
+    const cartItems = getCartItems();
+    cartItems.forEach((item: any) => {
+      if (item) {
+        addToMainCart({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image: item.image,
+          restaurantId: item.restaurantId,
+          restaurantName: restaurants.find(r => r.id === activeRestaurant)?.name || '',
+          category: item.category,
+          itemCategory: item.itemCategory
+        });
+      }
+    });
+
+    // Show success message
+    toast.success('Items added to cart! Redirecting to checkout...');
+    
+    // Close the modal
+    onClose();
+    
+    // Redirect to cart page after a short delay
+    setTimeout(() => {
+      navigate('/cart');
+    }, 1000);
   };
 
   const handleOrderTypeSelection = (type: 'delivery' | 'pickup') => {
@@ -254,6 +314,17 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
         maximumAge: 60000
       }
     );
+  };
+
+  const handleLocationSelect = (location: {lat: number, lng: number, address: string, formattedAddress: string}) => {
+    setSelectedLocation(location);
+    setDeliveryAddress(location.formattedAddress);
+    setShowMap(false);
+    toast.success('Location selected successfully!');
+  };
+
+  const toggleMap = () => {
+    setShowMap(!showMap);
   };
 
   const sendOrderNotifications = async (order: any, restaurant: any, user: any) => {
@@ -416,12 +487,20 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
                               </button>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => addToCart(item.id)}
-                              className="bg-gradient-to-r from-red-800 to-red-900 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-red-900 hover:to-red-950 transition-colors text-xs sm:text-sm"
-                            >
-                              Add to Cart
-                            </button>
+                            <div className="flex flex-col space-y-2">
+                              <button
+                                onClick={() => addToCart(item.id)}
+                                className="bg-gradient-to-r from-red-800 to-red-900 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-red-900 hover:to-red-950 transition-colors text-xs sm:text-sm"
+                              >
+                                Add to Cart
+                              </button>
+                              <button
+                                onClick={() => addToMainCartAndRedirect(item.id)}
+                                className="bg-gradient-to-r from-green-600 to-green-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-colors text-xs sm:text-sm"
+                              >
+                                Add & Checkout
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -434,6 +513,9 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
             {/* Fixed Cart Summary */}
             {cart.length > 0 && (
               <div className="fixed bottom-4 right-4 bg-white border shadow-lg rounded-lg p-3 sm:p-4 max-w-xs sm:max-w-sm">
+                <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                  💡 <strong>Tip:</strong> Use "Add & Checkout" for individual items or "Proceed to Checkout" for all items
+                </div>
                 <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">Cart Summary</h4>
                 <div className="space-y-1 mb-3 max-h-24 sm:max-h-32 overflow-y-auto">
                   {getCartItems().map((item: any) => (
@@ -535,13 +617,41 @@ const OrderFoodModal: React.FC<OrderFoodModalProps> = ({ isOpen, onClose, select
                    </button>
                    <button
                      type="button"
+                     onClick={toggleMap}
                      className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center text-sm"
                    >
                      <MapPin className="h-4 w-4 mr-2" />
-                     Show Map & Pick Location
+                     {showMap ? 'Hide Map' : 'Show Map & Pick Location'}
                    </button>
                  </div>
                  
+                 {/* Map Display */}
+                 {showMap && (
+                   <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                     <h4 className="text-sm font-medium text-gray-700 mb-3">Select Location on Map</h4>
+                     <GoogleMapPicker
+                       onLocationSelect={handleLocationSelect}
+                       placeholder="Search for your delivery address..."
+                     />
+                   </div>
+                 )}
+
+                 {/* Selected Location Display */}
+                 {selectedLocation && (
+                   <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                     <div className="flex items-start">
+                       <MapPin className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                       <div className="flex-1">
+                         <p className="text-sm font-medium text-green-900">✅ Location Selected:</p>
+                         <p className="text-sm text-green-800 mt-1">{selectedLocation.formattedAddress}</p>
+                         <p className="text-xs text-green-700 mt-1">
+                           Coordinates: {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+                         </p>
+                       </div>
+                     </div>
+                   </div>
+                 )}
+
                  {/* Current Location Display */}
                  {currentLocation && (
                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">

@@ -25,15 +25,17 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import { useNavigate } from 'react-router-dom';
 import BookTableModal from '../components/booking/BookTableModal';
 import OrderFoodModal from '../components/booking/OrderFoodModal';
 import EventBookingModal from '../components/booking/EventBookingModal';
 import FloatingChatButton from '../components/chat/FloatingChatButton';
 
 const HomePage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isDefaultUsername } = useAuth();
   const { restaurants, menuItems } = useApp();
   const { addToCart, items } = useCart();
+  const navigate = useNavigate();
   const [showBookTable, setShowBookTable] = useState(false);
   const [showOrderFood, setShowOrderFood] = useState(false);
   const [showEventBooking, setShowEventBooking] = useState(false);
@@ -59,11 +61,19 @@ const HomePage: React.FC = () => {
     },
     {
       id: 'event-booking',
-      title: 'Event Planning',
+      title: 'Event Management',
       description: 'Organize special occasions',
       icon: PartyPopper,
       color: 'bg-red-800',
       action: () => setShowEventBooking(true)
+    },
+    {
+      id: 'event-planning',
+      title: 'Event Planning',
+      description: 'Find event managers & services',
+      icon: Calendar,
+      color: 'bg-red-800',
+      action: () => navigate('/event-planning')
     }
   ];
 
@@ -152,6 +162,38 @@ const HomePage: React.FC = () => {
                     "From intimate dinners to grand celebrations, Tabuloo connects you with the finest restaurants, seamless reservations, and unforgettable culinary journeys."
                   )}
                 </p>
+                
+                {/* Default Username Prompt */}
+                {user && isDefaultUsername(user.name) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.3 }}
+                    className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                          <span className="text-yellow-600 text-sm font-semibold">!</span>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-yellow-800 mb-1">
+                          Personalize Your Profile
+                        </h3>
+                        <p className="text-sm text-yellow-700 mb-3">
+                          We've given you a temporary username. Please update your name in your profile to personalize your experience.
+                        </p>
+                        <button
+                          onClick={() => navigate('/profile')}
+                          className="inline-flex items-center px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-md transition-colors"
+                        >
+                          Update Profile
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             </motion.div>
             
@@ -226,7 +268,7 @@ const HomePage: React.FC = () => {
         {/* Quick Actions Section */}
         <section className="mb-8 sm:mb-12">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Quick Actions</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (

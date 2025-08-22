@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { X, Package, User, Phone, Mail, MapPin, Truck, Eye, EyeOff, CheckCircle, Shield } from 'lucide-react';
+import { X, Package, User, Phone, Mail, MapPin, Truck, Eye, EyeOff, CheckCircle, Shield, Camera, CreditCard, Banknote, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface DeliveryBoyAuthModalProps {
@@ -24,19 +24,22 @@ interface DeliveryBoyFormData {
   idProofNumber: string;
   emergencyContact: string;
   emergencyContactRelation: string;
+  // New fields
+  profilePhoto: File | null;
+  panCardPhoto: File | null;
+  aadhaarCardPhoto: File | null;
+  bankAccountNumber: string;
+  ifscCode: string;
+  upiId: string;
+  paymentMethod: 'bank' | 'upi';
 }
 
 const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onClose }) => {
-  const { login, register, sendAadhaarOTP, verifyAadhaarOTP, sendDeliveryLoginOTP } = useAuth();
+  const { login, register, sendDeliveryLoginOTP } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Aadhaar verification states
-  const [aadhaarOTPSent, setAadhaarOTPSent] = useState(false);
-  const [aadhaarOTP, setAadhaarOTP] = useState('');
-  const [aadhaarVerified, setAadhaarVerified] = useState(false);
   
   // Login OTP states
   const [loginOTPSent, setLoginOTPSent] = useState(false);
@@ -58,7 +61,15 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
     idProofType: 'aadhar',
     idProofNumber: '',
     emergencyContact: '',
-    emergencyContactRelation: ''
+    emergencyContactRelation: '',
+    // New fields
+    profilePhoto: null,
+    panCardPhoto: null,
+    aadhaarCardPhoto: null,
+    bankAccountNumber: '',
+    ifscCode: '',
+    upiId: '',
+    paymentMethod: 'bank'
   });
 
   const [loginData, setLoginData] = useState({
@@ -70,6 +81,10 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
 
   const handleInputChange = (field: keyof DeliveryBoyFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleFileChange = (field: 'profilePhoto' | 'panCardPhoto' | 'aadhaarCardPhoto', file: File | null) => {
+    setFormData(prev => ({ ...prev, [field]: file }));
   };
 
   const handleLoginInputChange = (field: string, value: string) => {
@@ -145,9 +160,41 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
       toast.error('Aadhaar number must be exactly 12 digits');
       return false;
     }
-    if (!aadhaarVerified && formData.idProofType === 'aadhar') {
-      toast.error('Please verify your Aadhaar number first');
+    if (formData.idProofType === 'pan' && formData.idProofNumber.length !== 10) {
+      toast.error('PAN number must be exactly 10 characters');
       return false;
+    }
+    // New validations
+    if (!formData.profilePhoto) {
+      toast.error('Profile photo is required');
+      return false;
+    }
+    if (!formData.panCardPhoto) {
+      toast.error('PAN card photo is required');
+      return false;
+    }
+    if (!formData.aadhaarCardPhoto) {
+      toast.error('Aadhaar card photo is required');
+      return false;
+    }
+    if (formData.paymentMethod === 'bank') {
+      if (!formData.bankAccountNumber.trim()) {
+        toast.error('Bank account number is required');
+        return false;
+      }
+      if (!formData.ifscCode.trim()) {
+        toast.error('IFSC code is required');
+        return false;
+      }
+      if (formData.ifscCode.length !== 11) {
+        toast.error('IFSC code must be exactly 11 characters');
+        return false;
+      }
+    } else {
+      if (!formData.upiId.trim()) {
+        toast.error('UPI ID is required');
+        return false;
+      }
     }
     return true;
   };
@@ -172,58 +219,14 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
     return true;
   };
 
-  const handleSendAadhaarOTP = async () => {
-    if (!formData.idProofNumber.trim()) {
-      toast.error('Please enter Aadhaar number first');
-      return;
-    }
-    if (formData.idProofNumber.length !== 12) {
-      toast.error('Aadhaar number must be exactly 12 digits');
-      return;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      const success = await sendAadhaarOTP(formData.idProofNumber);
-      if (success) {
-        setAadhaarOTPSent(true);
-      }
-    } catch (error) {
-      console.error('Error sending Aadhaar OTP:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleVerifyAadhaarOTP = async () => {
-    if (!aadhaarOTP.trim()) {
-      toast.error('Please enter OTP');
-      return;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      const success = await verifyAadhaarOTP(formData.idProofNumber, aadhaarOTP);
-      if (success) {
-        setAadhaarVerified(true);
-        setAadhaarOTPSent(false);
-        setAadhaarOTP('');
-      }
-    } catch (error) {
-      console.error('Error verifying Aadhaar OTP:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleSendLoginOTP = async () => {
     if (!loginData.phone.trim()) {
       toast.error('Please enter phone number first');
-      return;
+      return false;
     }
     if (loginData.phone.length !== 10) {
       toast.error('Phone number must be exactly 10 digits');
-      return;
+      return false;
     }
     
     setIsSubmitting(true);
@@ -265,6 +268,16 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
           phone: formData.emergencyContact,
           relation: formData.emergencyContactRelation
         },
+        // New fields
+        profilePhoto: formData.profilePhoto,
+        panCardPhoto: formData.panCardPhoto,
+        aadhaarCardPhoto: formData.aadhaarCardPhoto,
+        bankDetails: {
+          method: formData.paymentMethod,
+          accountNumber: formData.bankAccountNumber,
+          ifscCode: formData.ifscCode,
+          upiId: formData.upiId
+        },
         isOnline: false,
         earnings: {
           total: 0,
@@ -282,11 +295,10 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
           vehicleType: 'bike', vehicleNumber: '', vehicleModel: '',
           address: '', city: '', pincode: '',
           idProofType: 'aadhar', idProofNumber: '',
-          emergencyContact: '', emergencyContactRelation: ''
+          emergencyContact: '', emergencyContactRelation: '',
+          profilePhoto: null, panCardPhoto: null, aadhaarCardPhoto: null,
+          bankAccountNumber: '', ifscCode: '', upiId: '', paymentMethod: 'bank'
         });
-        setAadhaarVerified(false);
-        setAadhaarOTPSent(false);
-        setAadhaarOTP('');
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -327,9 +339,57 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
     }
   };
 
+  const renderFileUpload = (field: 'profilePhoto' | 'panCardPhoto' | 'aadhaarCardPhoto', label: string, description: string) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        <Camera className="h-4 w-4 inline mr-2" />
+        {label} *
+      </label>
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-red-400 transition-colors">
+        {formData[field] ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-center space-x-2 text-green-600">
+              <CheckCircle className="h-5 w-5" />
+              <span className="text-sm font-medium">File uploaded successfully</span>
+            </div>
+            <p className="text-xs text-gray-600">{formData[field]?.name}</p>
+            <button
+              type="button"
+              onClick={() => handleFileChange(field, null)}
+              className="text-red-600 hover:text-red-700 text-xs font-medium"
+            >
+              Remove file
+            </button>
+          </div>
+        ) : (
+          <div>
+            <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 mb-2">{description}</p>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                handleFileChange(field, file);
+              }}
+              className="hidden"
+              id={`${field}-upload`}
+            />
+            <label
+              htmlFor={`${field}-upload`}
+              className="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+            >
+              Choose File
+            </label>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-2xl max-h-[95vh] overflow-y-auto">
+      <div className="bg-white rounded-xl w-full max-w-4xl max-h-[95vh] overflow-y-auto">
         <div className="flex justify-between items-center p-6 border-b">
           <div className="flex items-center space-x-3">
             <Package className="h-8 w-8 text-red-600" />
@@ -477,84 +537,103 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
             </form>
           ) : (
             /* Registration Form */
-            <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleRegister} className="space-y-6">
               {/* Basic Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <User className="h-5 w-5 mr-2 text-red-600" />
+                  Basic Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <User className="h-4 w-4 inline mr-2" />
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Mail className="h-4 w-4 inline mr-2" />
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Phone className="h-4 w-4 inline mr-2" />
+                      Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange('phone', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Enter 10-digit phone number"
+                      maxLength={10}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Emergency Contact *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.emergencyContact}
+                      onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Emergency contact number"
+                      maxLength={10}
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <User className="h-4 w-4 inline mr-2" />
-                    Full Name *
+                    Emergency Contact Relation
                   </label>
                   <input
                     type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    value={formData.emergencyContactRelation}
+                    onChange={(e) => handleInputChange('emergencyContactRelation', e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Enter your full name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Mail className="h-4 w-4 inline mr-2" />
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Enter your email"
+                    placeholder="e.g., Father, Mother, Spouse"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Phone className="h-4 w-4 inline mr-2" />
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Enter 10-digit phone number"
-                    maxLength={10}
-                  />
+              {/* Document Uploads */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <Camera className="h-5 w-5 mr-2 text-red-600" />
+                  Document Verification
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {renderFileUpload('profilePhoto', 'Profile Photo', 'Upload a clear photo of yourself')}
+                  {renderFileUpload('panCardPhoto', 'PAN Card Photo', 'Upload a clear photo of your PAN card')}
+                  {renderFileUpload('aadhaarCardPhoto', 'Aadhaar Card Photo', 'Upload a clear photo of your Aadhaar card')}
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Emergency Contact *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.emergencyContact}
-                    onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Emergency contact number"
-                    maxLength={10}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Emergency Contact Relation
-                </label>
-                <input
-                  type="text"
-                  value={formData.emergencyContactRelation}
-                  onChange={(e) => handleInputChange('emergencyContactRelation', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="e.g., Father, Mother, Spouse"
-                />
               </div>
 
               {/* Vehicle Information */}
@@ -678,7 +757,7 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
                       onChange={(e) => handleInputChange('idProofType', e.target.value as any)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     >
-                      <option value="aadhar">Aadhar Card</option>
+                      <option value="aadhar">Aadhaar Card</option>
                       <option value="pan">PAN Card</option>
                       <option value="driving_license">Driving License</option>
                       <option value="voter_id">Voter ID</option>
@@ -695,67 +774,96 @@ const DeliveryBoyAuthModal: React.FC<DeliveryBoyAuthModalProps> = ({ isOpen, onC
                       value={formData.idProofNumber}
                       onChange={(e) => handleInputChange('idProofNumber', e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      placeholder={formData.idProofType === 'aadhar' ? 'Enter 12-digit Aadhaar number' : 'Enter ID proof number'}
-                      maxLength={formData.idProofType === 'aadhar' ? 12 : undefined}
+                      placeholder={formData.idProofType === 'aadhar' ? 'Enter 12-digit Aadhaar number' : 
+                                 formData.idProofType === 'pan' ? 'Enter 10-character PAN number' : 'Enter ID proof number'}
+                      maxLength={formData.idProofType === 'aadhar' ? 12 : 
+                                formData.idProofType === 'pan' ? 10 : undefined}
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* Aadhaar Verification Section */}
-                {formData.idProofType === 'aadhar' && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <Shield className="h-5 w-5 text-blue-600" />
-                      <h4 className="text-sm font-medium text-blue-900">Aadhaar Verification Required</h4>
+              {/* Bank Details */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <Banknote className="h-5 w-5 mr-2 text-red-600" />
+                  Payment Details
+                </h3>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Method *
+                  </label>
+                  <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('paymentMethod', 'bank')}
+                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                        formData.paymentMethod === 'bank'
+                          ? 'bg-white text-red-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Bank Account
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('paymentMethod', 'upi')}
+                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                        formData.paymentMethod === 'upi'
+                          ? 'bg-white text-red-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      UPI ID
+                    </button>
+                  </div>
+                </div>
+
+                {formData.paymentMethod === 'bank' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Bank Account Number *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.bankAccountNumber}
+                        onChange={(e) => handleInputChange('bankAccountNumber', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="Enter your bank account number"
+                      />
                     </div>
-                    
-                    {!aadhaarVerified ? (
-                      <div className="space-y-3">
-                        <p className="text-xs text-blue-700">
-                          For security, we need to verify your Aadhaar number. An OTP will be sent to your Aadhaar registered mobile number.
-                        </p>
-                        
-                        {!aadhaarOTPSent ? (
-                          <button
-                            type="button"
-                            onClick={handleSendAadhaarOTP}
-                            disabled={isSubmitting || formData.idProofNumber.length !== 12}
-                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                          >
-                            Send Aadhaar Verification OTP
-                          </button>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="flex space-x-2">
-                              <input
-                                type="text"
-                                value={aadhaarOTP}
-                                onChange={(e) => setAadhaarOTP(e.target.value)}
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                placeholder="Enter 6-digit OTP"
-                                maxLength={6}
-                              />
-                              <button
-                                type="button"
-                                onClick={handleVerifyAadhaarOTP}
-                                disabled={isSubmitting || !aadhaarOTP.trim()}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
-                              >
-                                Verify OTP
-                              </button>
-                            </div>
-                            <p className="text-xs text-blue-600">
-                              OTP sent to your Aadhaar registered mobile number
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2 text-green-700">
-                        <CheckCircle className="h-5 w-5" />
-                        <span className="text-sm font-medium">Aadhaar verified successfully!</span>
-                      </div>
-                    )}
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        IFSC Code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.ifscCode}
+                        onChange={(e) => handleInputChange('ifscCode', e.target.value.toUpperCase())}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="e.g., SBIN0001234"
+                        maxLength={11}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      UPI ID *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.upiId}
+                      onChange={(e) => handleInputChange('upiId', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="e.g., username@upi"
+                    />
                   </div>
                 )}
               </div>
