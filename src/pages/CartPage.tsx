@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; 
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, MapPin, User, Phone, Home, CreditCard, DollarSign, ShoppingBag, Truck } from 'lucide-react';
+import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, MapPin, User, Phone, Home, CreditCard, DollarSign, ShoppingBag, Truck, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import paymentService from '../services/paymentService';
 import GoogleMapPicker from '../components/GoogleMapPicker';
@@ -30,6 +30,12 @@ const CartPage: React.FC = () => {
   const [showMap, setShowMap] = useState(false);
   const [orderType, setOrderType] = useState<'delivery' | 'pickup'>('delivery');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown');
+
+  // Check location permission on component mount
+  useEffect(() => {
+    checkLocationPermission();
+  }, []);
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -44,79 +50,161 @@ const CartPage: React.FC = () => {
     setDeliveryAddress(location.formattedAddress);
   };
 
-     const getCurrentLocation = () => {
-     if (!navigator.geolocation) {
-       toast.error('Geolocation is not supported by this browser');
-       return;
-     }
+  // Check location permission status
+  const checkLocationPermission = () => {
+    if (!navigator.permissions) {
+      setLocationPermission('unknown');
+      return;
+    }
 
-     if (!window.google || !window.google.maps) {
-       toast.error('Google Maps is not loaded. Please wait a moment and try again.');
-       return;
-     }
+    navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+      setLocationPermission(result.state);
+      
+      // Listen for permission changes
+      result.addEventListener('change', () => {
+        setLocationPermission(result.state);
+      });
+    }).catch(() => {
+      setLocationPermission('unknown');
+    });
+  };
 
-     setIsGettingLocation(true);
+  const getCurrentLocation = async () => {
+    // Check if geolocation is supported
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by this browser. Please use a modern browser.');
+      return;
+    }
+
+    // Check if we're in a secure context (HTTPS or localhost)
+    if (!window.isSecureContext) {
+      toast.error('Location access requires a secure connection (HTTPS). Please check your connection.');
+      return;
+    }
+
+    // Check and request location permission
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      return;
+    }
+
+    setIsGettingLocation(true);
     
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const location: Location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          address: '',
-          formattedAddress: ''
-        };
+    // Configure geolocation options
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 300000 // 5 minutes
+    };
 
-        // Use reverse geocoding to get address
-        if (window.google && window.google.maps) {
-          const geocoder = new window.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat: location.lat, lng: location.lng } }, (results: any, status: any) => {
-            setIsGettingLocation(false);
-            if (status === 'OK' && results && results[0]) {
-              location.address = results[0].formatted_address;
-              location.formattedAddress = results[0].formatted_address;
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          
+          // Create location object
+          const location: Location = {
+            lat: latitude,
+            lng: longitude,
+            address: '',
+            formattedAddress: ''
+          };
+
+          // Try to get address using reverse geocoding
+          try {
+            if (window.google && window.google.maps) {
+              const geocoder = new window.google.maps.Geocoder();
+              
+              const result = await new Promise((resolve, reject) => {
+                geocoder.geocode(
+                  { location: { lat: latitude, lng: longitude } },
+                  (results: any, status: any) => {
+                    if (status === 'OK' && results && results[0]) {
+                      resolve(results[0]);
+                    } else {
+                      reject(new Error(`Geocoding failed: ${status}`));
+                    }
+                  }
+                );
+              });
+
+              // Update location with address
+              location.address = result.formatted_address;
+              location.formattedAddress = result.formatted_address;
               
               setSelectedLocation(location);
               setDeliveryAddress(location.formattedAddress);
-              toast.success('Current location detected and address filled!');
+              toast.success('📍 Current location detected and address filled!');
+              
             } else {
-              toast.error('Could not get address for current location');
+              // Fallback: use coordinates if Google Maps is not available
+              location.formattedAddress = `Location at ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+              setSelectedLocation(location);
+              setDeliveryAddress(location.formattedAddress);
+              toast.success('📍 Current location detected! (Address lookup unavailable)');
             }
-          });
-        } else {
+          } catch (geocodingError) {
+            console.warn('Geocoding failed, using coordinates:', geocodingError);
+            // Fallback: use coordinates
+            location.formattedAddress = `Location at ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+            setSelectedLocation(location);
+            setDeliveryAddress(location.formattedAddress);
+            toast.success('📍 Current location detected! (Address lookup unavailable)');
+          }
+          
+        } catch (error) {
+          console.error('Error processing location:', error);
+          toast.error('Error processing location data. Please try again.');
+        } finally {
           setIsGettingLocation(false);
-          toast.error('Google Maps not loaded. Please try again.');
         }
       },
       (error) => {
         setIsGettingLocation(false);
-        console.error('Error getting current location:', error);
+        console.error('Geolocation error:', error);
+        
+        let errorMessage = 'Error getting current location. Please try again.';
+        
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            toast.error('Location access denied. Please allow location access in your browser settings.');
+            errorMessage = 'Location access denied. Please allow location access in your browser settings and refresh the page.';
             break;
           case error.POSITION_UNAVAILABLE:
-            toast.error('Location information unavailable. Please try again.');
+            errorMessage = 'Location information unavailable. Please check your device location services.';
             break;
           case error.TIMEOUT:
-            toast.error('Location request timed out. Please try again.');
+            errorMessage = 'Location request timed out. Please try again.';
             break;
           default:
-            toast.error('Error getting current location. Please try again.');
+            errorMessage = `Location error: ${error.message}`;
         }
+        
+        toast.error(errorMessage);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
-             }
-     );
-   };
+      options
+    );
+  };
 
-   const clearCurrentLocation = () => {
-     setSelectedLocation(null);
-     setDeliveryAddress('');
-     toast.success('Location cleared');
-   };
+     const clearCurrentLocation = () => {
+    setSelectedLocation(null);
+    setDeliveryAddress('');
+    toast.success('Location cleared');
+  };
+
+  // Request location permission
+  const requestLocationPermission = async () => {
+    try {
+      const permission = await navigator.permissions.query({ name: 'geolocation' });
+      if (permission.state === 'denied') {
+        toast.error('Location permission denied. Please enable it in your browser settings.');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.warn('Could not check location permission:', error);
+      return true; // Assume permission is available
+    }
+  };
 
   const handleCheckout = async () => {
     if (!user) {
@@ -432,36 +520,107 @@ const CartPage: React.FC = () => {
                        
                        {/* Use Current Location Button */}
                        <div className="mb-3">
-                         <p className="text-xs text-gray-600 mb-2">
-                           💡 <strong>Quick Setup:</strong> Click the button below to automatically detect your current location and fill in the address
-                         </p>
+                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                           <div className="flex items-start space-x-2">
+                             <div className="flex-shrink-0">
+                               <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
+                                 <span className="text-blue-600 text-xs">💡</span>
+                               </div>
+                             </div>
+                             <div className="flex-1">
+                               <p className="text-xs text-blue-800 font-medium mb-1">Quick Setup</p>
+                               <p className="text-xs text-blue-700">
+                                 Click the button below to automatically detect your current location and fill in the address. 
+                                 Make sure to allow location access when prompted.
+                               </p>
+                             </div>
+                           </div>
+                         </div>
+                         
                          <button
                            type="button"
                            onClick={getCurrentLocation}
                            disabled={isGettingLocation}
-                           className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                           className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-sm hover:shadow-md"
                          >
                            {isGettingLocation ? (
                              <>
-                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                               <span>Detecting Location...</span>
+                               <Loader2 className="h-5 w-5 animate-spin" />
+                               <span className="font-medium">Detecting Location...</span>
                              </>
                            ) : (
                              <>
-                               <MapPin className="h-4 w-4" />
-                               <span>Use Current Location</span>
+                               <MapPin className="h-5 w-5" />
+                               <span className="font-medium">Use Current Location</span>
                              </>
                            )}
                          </button>
+                         
+                         {/* Location Status Info */}
+                         <div className="mt-2 text-xs space-y-1">
+                           <div className="flex items-center space-x-2">
+                             <span className="text-gray-500">• Requires location permission from your browser</span>
+                             {locationPermission === 'granted' && (
+                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                 ✅ Granted
+                               </span>
+                             )}
+                             {locationPermission === 'denied' && (
+                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                 ❌ Denied
+                               </span>
+                             )}
+                             {locationPermission === 'prompt' && (
+                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                 ⏳ Prompt
+                               </span>
+                             )}
+                           </div>
+                           <p className="text-gray-500">• Works best with GPS enabled devices</p>
+                           <p className="text-gray-500">• Address will be automatically filled</p>
+                           
+                           {/* Permission Help */}
+                           {locationPermission === 'denied' && (
+                             <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                               <p className="font-medium">Location Access Denied</p>
+                               <p>To use this feature, please:</p>
+                               <ol className="list-decimal list-inside ml-2 mt-1 space-y-1">
+                                 <li>Click the lock icon in your browser address bar</li>
+                                 <li>Change location permission to "Allow"</li>
+                                 <li>Refresh the page</li>
+                               </ol>
+                             </div>
+                           )}
+                         </div>
                        </div>
                        
-                       <textarea
-                         value={deliveryAddress}
-                         onChange={(e) => setDeliveryAddress(e.target.value)}
-                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                         rows={3}
-                         placeholder="Enter your delivery address or use current location above"
-                       />
+                       <div className="space-y-2">
+                         <label className="block text-sm font-medium text-gray-700">
+                           Delivery Address
+                         </label>
+                         
+                         <textarea
+                           value={deliveryAddress}
+                           onChange={(e) => setDeliveryAddress(e.target.value)}
+                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                           rows={3}
+                           placeholder="Enter your delivery address or use current location above"
+                         />
+                         
+                         {/* Manual Address Input Help */}
+                         {!selectedLocation && (
+                           <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                             <p className="font-medium">Manual Address Input:</p>
+                             <p>Please provide a complete address including:</p>
+                             <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                               <li>House/Flat number and street name</li>
+                               <li>Area/Locality</li>
+                               <li>City and State</li>
+                               <li>PIN Code</li>
+                             </ul>
+                           </div>
+                         )}
+                       </div>
                        
                        {/* Current Location Success Message */}
                        {selectedLocation && (
@@ -472,8 +631,15 @@ const CartPage: React.FC = () => {
                                <div className="flex-1">
                                  <p className="text-sm font-medium text-green-900">📍 Current Location Detected:</p>
                                  <p className="text-sm text-green-800">{selectedLocation.formattedAddress}</p>
+                                 <div className="flex items-center space-x-4 mt-2 text-xs text-green-600">
+                                   <span>Coordinates: {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}</span>
+                                   <span className="flex items-center">
+                                     <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                                     GPS Active
+                                   </span>
+                                 </div>
                                  <p className="text-xs text-green-600 mt-1">
-                                   Coordinates: {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+                                   ✅ Address automatically filled in the text area above
                                  </p>
                                </div>
                              </div>

@@ -68,7 +68,7 @@ interface Order {
   userId: string;
   restaurantId: string;
   items: MenuItem[];
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'completed';
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'completed' | 'cancelled';
   type: 'delivery' | 'pickup';
   total: number;
   address?: string;
@@ -76,6 +76,7 @@ interface Order {
   customerPhone: string;
   createdAt: Date;
   statusUpdatedAt?: Date;
+  previousStatus?: Order['status'];
   paymentMethod?: 'wallet' | 'netbanking' | 'card' | 'upi' | 'cod';
 }
 
@@ -88,18 +89,23 @@ interface Booking {
   time: string;
   customers: number;
   customerNames: string[];
+  customerPhones: string[];
   phone: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   paymentStatus: 'pending' | 'paid';
   amount: number;
   createdAt: Date;
   statusUpdatedAt?: Date;
+  previousStatus?: Booking['status'];
   specialRequests?: string;
   foodOptions?: string;
   occasion?: string;
   placeForEvent?: string;
   description?: string;
-  paymentMethod?: 'wallet' | 'netbanking' | 'card' | 'upi' | 'cod';
+  paymentMethod?: 'wallet' | 'netbanking' | 'card' | 'upi' | 'cod' | 'razorpay';
+  selectedMenuItems?: {[key: string]: number};
+  paymentId?: string;
+  orderId?: string;
 }
 
 // Event Planning Interfaces
@@ -228,6 +234,7 @@ interface AppContextType {
   eventBookings: EventBooking[];
   eventChats: EventChat[];
   loading: boolean;
+  error: string | null;
   
   // Restaurant Functions
   addRestaurant: (restaurant: Omit<Restaurant, 'id'>) => Promise<void>;
@@ -236,6 +243,8 @@ interface AppContextType {
   addBooking: (booking: Omit<Booking, 'id'>) => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
   updateBookingStatus: (bookingId: string, status: Booking['status']) => Promise<void>;
+  getOrderStatusHistory: (orderId: string) => Promise<{ status: Order['status']; timestamp: Date; updatedBy?: string }[]>;
+  getBookingStatusHistory: (bookingId: string) => Promise<{ status: Booking['status']; timestamp: Date; updatedBy?: string }[]>;
   updateRestaurant: (restaurant: Restaurant) => Promise<void>;
   updateMenuItem: (menuItem: MenuItem) => Promise<void>;
   updateRestaurantStatus: (restaurantId: string, isOpen: boolean) => Promise<void>;
@@ -287,143 +296,186 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [eventBookings, setEventBookings] = useState<EventBooking[]>([]);
   const [eventChats, setEventChats] = useState<EventChat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Real-time listeners for Firestore collections
   useEffect(() => {
-    const unsubscribeRestaurants = onSnapshot(
-      collection(db, 'restaurants'),
-      (snapshot) => {
-        const restaurantData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Restaurant[];
-        setRestaurants(restaurantData);
-      },
-      (error) => {
-        console.error('Error fetching restaurants:', error);
-        toast.error('Failed to load restaurants');
+    // Add a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        setError('App initialization timed out. Please check your internet connection.');
+        setLoading(false);
       }
-    );
+    }, 10000); // 10 seconds timeout
 
-    const unsubscribeMenuItems = onSnapshot(
-      collection(db, 'menuItems'),
-      (snapshot) => {
-        const menuData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as MenuItem[];
-        setMenuItems(menuData);
-      },
-      (error) => {
-        console.error('Error fetching menu items:', error);
-        toast.error('Failed to load menu items');
-      }
-    );
+    try {
+      const unsubscribeRestaurants = onSnapshot(
+        collection(db, 'restaurants'),
+        (snapshot) => {
+          try {
+            const restaurantData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            })) as Restaurant[];
+            setRestaurants(restaurantData);
+          } catch (error) {
+            console.error('Error processing restaurant data:', error);
+          }
+        },
+        (error) => {
+          console.error('Error fetching restaurants:', error);
+          // Don't show toast error to avoid blocking the app
+        }
+      );
 
-    const unsubscribeOrders = onSnapshot(
-      collection(db, 'orders'),
-      (snapshot) => {
-        const orderData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date()
-        })) as Order[];
-        setOrders(orderData);
-      },
-      (error) => {
-        console.error('Error fetching orders:', error);
-        toast.error('Failed to load orders');
-      }
-    );
+      const unsubscribeMenuItems = onSnapshot(
+        collection(db, 'menuItems'),
+        (snapshot) => {
+          try {
+            const menuData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            })) as MenuItem[];
+            setMenuItems(menuData);
+          } catch (error) {
+            console.error('Error processing menu data:', error);
+          }
+        },
+        (error) => {
+          console.error('Error fetching menu items:', error);
+          // Don't show toast error to avoid blocking the app
+        }
+      );
 
-    const unsubscribeBookings = onSnapshot(
-      collection(db, 'bookings'),
-      (snapshot) => {
-        const bookingData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date()
-        })) as Booking[];
-        setBookings(bookingData);
-      },
-      (error) => {
-        console.error('Error fetching bookings:', error);
-        toast.error('Failed to load bookings');
-      }
-    );
+      const unsubscribeOrders = onSnapshot(
+        collection(db, 'orders'),
+        (snapshot) => {
+          try {
+            const orderData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt?.toDate() || new Date()
+            })) as Order[];
+            setOrders(orderData);
+          } catch (error) {
+            console.error('Error processing order data:', error);
+          }
+        },
+        (error) => {
+          console.error('Error fetching orders:', error);
+          // Don't show toast error to avoid blocking the app
+        }
+      );
+
+      const unsubscribeBookings = onSnapshot(
+        collection(db, 'bookings'),
+        (snapshot) => {
+          try {
+            const bookingData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt?.toDate() || new Date()
+            })) as Booking[];
+            setBookings(bookingData);
+          } catch (error) {
+            console.error('Error processing booking data:', error);
+          }
+        },
+        (error) => {
+          console.error('Error fetching bookings:', error);
+          // Don't show toast error to avoid blocking the app
+        }
+      );
 
     // Event Planning Real-time Listeners
     const unsubscribeEventRequirements = onSnapshot(
       collection(db, 'eventRequirements'),
       (snapshot) => {
-        const requirementData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date()
-        })) as EventRequirement[];
-        setEventRequirements(requirementData);
+        try {
+          const requirementData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate() || new Date(),
+            updatedAt: doc.data().updatedAt?.toDate() || new Date()
+          })) as EventRequirement[];
+          setEventRequirements(requirementData);
+        } catch (error) {
+          console.error('Error processing event requirement data:', error);
+        }
       },
       (error) => {
         console.error('Error fetching event requirements:', error);
-        toast.error('Failed to load event requirements');
+        // Don't show toast error to avoid blocking the app
       }
     );
 
     const unsubscribeEventManagers = onSnapshot(
       collection(db, 'eventManagers'),
       (snapshot) => {
-        const managerData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date()
-        })) as EventManager[];
-        setEventManagers(managerData);
+        try {
+          const managerData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate() || new Date(),
+            updatedAt: doc.data().updatedAt?.toDate() || new Date()
+          })) as EventManager[];
+          setEventManagers(managerData);
+        } catch (error) {
+          console.error('Error processing event manager data:', error);
+        }
       },
       (error) => {
         console.error('Error fetching event managers:', error);
-        toast.error('Failed to load event managers');
+        // Don't show toast error to avoid blocking the app
       }
     );
 
     const unsubscribeEventBookings = onSnapshot(
       collection(db, 'eventBookings'),
       (snapshot) => {
-        const bookingData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date()
-        })) as EventBooking[];
-        setEventBookings(bookingData);
+        try {
+          const bookingData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate() || new Date(),
+            updatedAt: doc.data().updatedAt?.toDate() || new Date()
+          })) as EventBooking[];
+          setEventBookings(bookingData);
+        } catch (error) {
+          console.error('Error processing event booking data:', error);
+        }
       },
       (error) => {
         console.error('Error fetching event bookings:', error);
-        toast.error('Failed to load event bookings');
+        // Don't show toast error to avoid blocking the app
       }
     );
 
     const unsubscribeEventChats = onSnapshot(
       collection(db, 'eventChats'),
       (snapshot) => {
-        const chatData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date()
-        })) as EventChat[];
-        setEventChats(chatData);
+        try {
+          const chatData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate() || new Date(),
+            updatedAt: doc.data().updatedAt?.toDate() || new Date()
+          })) as EventChat[];
+          setEventChats(chatData);
+        } catch (error) {
+          console.error('Error processing event chat data:', error);
+        }
       },
       (error) => {
         console.error('Error fetching event chats:', error);
-        toast.error('Failed to load event chats');
+        // Don't show toast error to avoid blocking the app
       }
     );
 
     setLoading(false);
 
     return () => {
+      clearTimeout(timeoutId);
       unsubscribeRestaurants();
       unsubscribeMenuItems();
       unsubscribeOrders();
@@ -433,7 +485,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       unsubscribeEventBookings();
       unsubscribeEventChats();
     };
-  }, []);
+  } catch (error) {
+    console.error('Error setting up real-time listeners:', error);
+    setError(error instanceof Error ? error.message : 'Failed to initialize app');
+    setLoading(false);
+  }
+}, []);
 
   const addRestaurant = async (restaurant: Omit<Restaurant, 'id'>) => {
     try {
@@ -491,30 +548,77 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     try {
+      // Validate status transition
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      // Validate status transition logic
+      const validTransitions: Record<Order['status'], Order['status'][]> = {
+        'pending': ['confirmed', 'cancelled'],
+        'confirmed': ['preparing', 'cancelled'],
+        'preparing': ['ready', 'cancelled'],
+        'ready': ['delivered', 'cancelled'],
+        'delivered': ['completed'],
+        'completed': [],
+        'cancelled': []
+      };
+
+      if (!validTransitions[order.status].includes(status)) {
+        throw new Error(`Invalid status transition from ${order.status} to ${status}`);
+      }
+
       console.log('Updating order status:', { orderId, status, userId: auth.currentUser?.uid });
+      
       await updateDoc(doc(db, 'orders', orderId), { 
         status,
-        statusUpdatedAt: new Date()
+        statusUpdatedAt: new Date(),
+        previousStatus: order.status
       });
-      toast.success('Order status updated successfully!');
+      
+      toast.success(`Order status updated to ${status}!`);
     } catch (error) {
       console.error('Error updating order status:', error);
-      toast.error('Failed to update order status');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update order status';
+      toast.error(errorMessage);
       throw error;
     }
   };
 
   const updateBookingStatus = async (bookingId: string, status: Booking['status']) => {
     try {
+      // Validate status transition
+      const booking = bookings.find(b => b.id === bookingId);
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
+
+      // Validate status transition logic
+      const validTransitions: Record<Booking['status'], Booking['status'][]> = {
+        'pending': ['confirmed', 'cancelled'],
+        'confirmed': ['completed', 'cancelled'],
+        'completed': [],
+        'cancelled': []
+      };
+
+      if (!validTransitions[booking.status].includes(status)) {
+        throw new Error(`Invalid status transition from ${booking.status} to ${status}`);
+      }
+
       console.log('Updating booking status:', { bookingId, status, userId: auth.currentUser?.uid });
+      
       await updateDoc(doc(db, 'bookings', bookingId), { 
         status,
-        statusUpdatedAt: new Date()
+        statusUpdatedAt: new Date(),
+        previousStatus: booking.status
       });
-      toast.success('Booking status updated successfully!');
+      
+      toast.success(`Booking status updated to ${status}!`);
     } catch (error) {
       console.error('Error updating booking status:', error);
-      toast.error('Failed to update booking status');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update booking status';
+      toast.error(errorMessage);
       throw error;
     }
   };
@@ -565,6 +669,64 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error updating menu item availability:', error);
       toast.error(`Failed to update menu item availability: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
+    }
+  };
+
+    const getOrderStatusHistory = async (orderId: string) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      const history = [];
+      if (order.previousStatus) {
+        history.push({
+          status: order.previousStatus,
+          timestamp: order.statusUpdatedAt || order.createdAt,
+          updatedBy: 'restaurant_owner'
+        });
+      }
+      
+      history.push({
+        status: order.status,
+        timestamp: order.statusUpdatedAt || order.createdAt,
+        updatedBy: 'restaurant_owner'
+      });
+
+      return history;
+    } catch (error) {
+      console.error('Error getting order status history:', error);
+      throw error;
+    }
+  };
+
+  const getBookingStatusHistory = async (bookingId: string) => {
+    try {
+      const booking = bookings.find(b => b.id === bookingId);
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
+
+      const history = [];
+      if (booking.previousStatus) {
+        history.push({
+          status: booking.previousStatus,
+          timestamp: booking.statusUpdatedAt || booking.createdAt,
+          updatedBy: 'restaurant_owner'
+        });
+      }
+      
+      history.push({
+        status: booking.status,
+        timestamp: booking.statusUpdatedAt || booking.createdAt,
+        updatedBy: 'restaurant_owner'
+      });
+
+      return history;
+    } catch (error) {
+      console.error('Error getting booking status history:', error);
       throw error;
     }
   };
@@ -867,6 +1029,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     eventBookings,
     eventChats,
     loading,
+    error,
     
     // Restaurant Functions
     addRestaurant,
@@ -875,6 +1038,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     addBooking,
     updateOrderStatus,
     updateBookingStatus,
+    getOrderStatusHistory,
+    getBookingStatusHistory,
     updateRestaurant,
     updateMenuItem,
     updateRestaurantStatus,
@@ -900,6 +1065,36 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     rejectEventManager,
     sendMessage
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Initializing app...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If there's an error, show a simple error message
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">App Initialization Error</h1>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AppContext.Provider value={value}>

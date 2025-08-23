@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { X, Calendar, Clock, Users, PartyPopper, CreditCard, Plus, Trash2, CheckCircle, Wallet, Building, Smartphone, Banknote, HelpCircle } from 'lucide-react';
+import { X, Calendar, Clock, Users, PartyPopper, CreditCard, Plus, Trash2, CheckCircle, Wallet, Banknote, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { validateIndianPhoneNumber, formatPhoneNumber, validateCardNumber, formatCardNumber, validateCVV, formatCVV, validateExpiryDate, formatExpiryDate } from '../../utils/validation';
+import { validateIndianPhoneNumber, formatPhoneNumber } from '../../utils/validation';
 import EventPlanningChat from '../chat/EventPlanningChat';
+import paymentService from '../../services/paymentService';
 
 interface EventBookingModalProps {
   isOpen: boolean;
@@ -16,14 +17,9 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
   const { user, updateWalletBalance } = useAuth();
   const { restaurants, addBooking } = useApp();
   const [step, setStep] = useState<'details' | 'payment' | 'confirmation'>('details');
-  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'netbanking' | 'card' | 'upi' | 'cod'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'razorpay' | 'cod'>('razorpay');
   const [showChat, setShowChat] = useState(false);
-  const [cardDetails, setCardDetails] = useState({
-    number: '',
-    expiry: '',
-    cvv: '',
-    name: ''
-  });
+
      const [formData, setFormData] = useState({
      restaurantId: selectedRestaurantId || '',
      occasion: '',
@@ -40,9 +36,7 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
 
   const paymentMethods = [
     { id: 'wallet', name: 'Tabuloo Wallet', icon: Wallet, description: `Balance: ₹${(user?.walletBalance || 0).toFixed(2)}` },
-    { id: 'netbanking', name: 'Net Banking', icon: Building, description: 'All major banks supported' },
-    { id: 'card', name: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard, Amex' },
-    { id: 'upi', name: 'UPI', icon: Smartphone, description: 'Pay using UPI apps' },
+    { id: 'razorpay', name: 'Secure Payment', icon: CreditCard, description: 'Credit/Debit Card, UPI, Net Banking via Razorpay' },
     { id: 'cod', name: 'Cash on Arrival', icon: Banknote, description: 'Pay when you arrive for the event' }
   ];
 
@@ -203,26 +197,6 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
   const handlePayment = async () => {
     if (!selectedRestaurant || !user) return;
 
-    // Validate card details if card payment is selected
-    if (paymentMethod === 'card') {
-      if (!validateCardNumber(cardDetails.number)) {
-        toast.error('Please enter a valid 16-digit card number');
-        return;
-      }
-      if (!validateCVV(cardDetails.cvv)) {
-        toast.error('Please enter a valid 3-digit CVV');
-        return;
-      }
-      if (!validateExpiryDate(cardDetails.expiry)) {
-        toast.error('Please enter a valid expiry date (MM/YY)');
-        return;
-      }
-      if (!cardDetails.name.trim()) {
-        toast.error('Please enter cardholder name');
-        return;
-      }
-    }
-
     const baseAmount = selectedRestaurant.price * parseInt(formData.customers);
     const eventSurcharge = baseAmount * 0.5; // 50% surcharge for events
     const totalAmount = baseAmount + eventSurcharge;
@@ -235,38 +209,149 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
         return;
       }
       updateWalletBalance((user.walletBalance || 0) - advanceAmount);
+      
+      // Create booking directly for wallet payment
+      const booking = {
+        userId: user.id,
+        restaurantId: formData.restaurantId,
+        type: 'event' as const,
+        date: formData.date,
+        time: formData.time,
+        customers: parseInt(formData.customers),
+        customerNames: formData.customerNames.filter(name => name.trim() !== ''),
+        customerPhones: formData.customerPhones.filter(phone => phone.trim() !== ''),
+        phone: formData.phone,
+        status: 'confirmed' as const,
+        paymentStatus: 'paid' as const,
+        amount: advanceAmount,
+        createdAt: new Date(),
+        occasion: formData.occasion,
+        placeForEvent: formData.placeForEvent,
+        description: formData.description,
+        specialRequests: formData.specialRequests,
+        paymentMethod: paymentMethod
+      };
+
+      try {
+        await addBooking(booking);
+        await sendEventEmails(booking, selectedRestaurant, user);
+        setStep('confirmation');
+      } catch (error) {
+        console.error('Event booking error:', error);
+        toast.error('Failed to create event booking');
+      }
+      return;
     }
 
-         const booking = {
-       userId: user.id,
-       restaurantId: formData.restaurantId,
-       type: 'event' as const,
-       date: formData.date,
-       time: formData.time,
-       customers: parseInt(formData.customers),
-       customerNames: formData.customerNames.filter(name => name.trim() !== ''),
-       customerPhones: formData.customerPhones.filter(phone => phone.trim() !== ''),
-       phone: formData.phone,
-       status: 'confirmed' as const,
-       paymentStatus: 'paid' as const,
-       amount: advanceAmount,
-       createdAt: new Date(),
-       occasion: formData.occasion,
-       placeForEvent: formData.placeForEvent,
-       description: formData.description,
-       specialRequests: formData.specialRequests,
-       paymentMethod: paymentMethod
-     };
+    // Handle COD payment
+    if (paymentMethod === 'cod') {
+      const booking = {
+        userId: user.id,
+        restaurantId: formData.restaurantId,
+        type: 'event' as const,
+        date: formData.date,
+        time: formData.time,
+        customers: parseInt(formData.customers),
+        customerNames: formData.customerNames.filter(name => name.trim() !== ''),
+        customerPhones: formData.customerPhones.filter(phone => phone.trim() !== ''),
+        phone: formData.phone,
+        status: 'confirmed' as const,
+        paymentStatus: 'pending' as const,
+        amount: advanceAmount,
+        createdAt: new Date(),
+        occasion: formData.occasion,
+        placeForEvent: formData.placeForEvent,
+        description: formData.description,
+        specialRequests: formData.specialRequests,
+        paymentMethod: paymentMethod
+      };
 
+      try {
+        await addBooking(booking);
+        await sendEventEmails(booking, selectedRestaurant, user);
+        setStep('confirmation');
+      } catch (error) {
+        console.error('Event booking error:', error);
+        toast.error('Failed to create event booking');
+      }
+      return;
+    }
+
+    // For Razorpay payment
     try {
-      await addBooking(booking);
-      
-      // Simulate email sending
-      await sendEventEmails(booking, selectedRestaurant, user);
-      
-      setStep('confirmation');
+      const bookingData = {
+        amount: advanceAmount,
+        phone: formData.phone,
+        venueName: selectedRestaurant.name,
+        occasion: formData.occasion,
+        date: formData.date,
+        time: formData.time,
+        attendees: formData.customers,
+        customerNames: formData.customerNames.filter(name => name.trim() !== ''),
+        customerPhones: formData.customerPhones.filter(phone => phone.trim() !== ''),
+        placeForEvent: formData.placeForEvent,
+        description: formData.description,
+        specialRequests: formData.specialRequests
+      };
+
+      await paymentService.initializeEventBookingPayment(
+        bookingData,
+        user,
+        async (paymentResponse: any) => {
+          try {
+            console.log('Payment successful:', paymentResponse);
+            
+            // Verify payment
+            const verificationResponse = await paymentService.verifyPayment(
+              paymentResponse.razorpay_payment_id,
+              paymentResponse.razorpay_order_id
+            );
+            
+            if (verificationResponse.success) {
+              // Create booking
+              const booking = {
+                userId: user.id,
+                restaurantId: formData.restaurantId,
+                type: 'event' as const,
+                date: formData.date,
+                time: formData.time,
+                customers: parseInt(formData.customers),
+                customerNames: formData.customerNames.filter(name => name.trim() !== ''),
+                customerPhones: formData.customerPhones.filter(phone => phone.trim() !== ''),
+                phone: formData.phone,
+                status: 'confirmed' as const,
+                paymentStatus: 'paid' as const,
+                amount: advanceAmount,
+                createdAt: new Date(),
+                occasion: formData.occasion,
+                placeForEvent: formData.placeForEvent,
+                description: formData.description,
+                specialRequests: formData.specialRequests,
+                paymentMethod: 'razorpay' as const,
+                paymentId: paymentResponse.razorpay_payment_id,
+                orderId: paymentResponse.razorpay_order_id
+              };
+
+              await addBooking(booking);
+              await sendEventEmails(booking, selectedRestaurant, user);
+              toast.success('Payment successful! Event booked.');
+              setStep('confirmation');
+            } else {
+              toast.error('Payment verification failed. Please contact support.');
+            }
+          } catch (error) {
+            console.error('Payment verification error:', error);
+            toast.error('Payment verification failed. Please contact support.');
+          }
+        },
+        (error: any) => {
+          console.error('Payment error:', error);
+          toast.error(`Payment failed: ${error.message}`);
+        }
+      );
     } catch (error) {
-      console.error('Event booking error:', error);
+      console.error('Payment initialization error:', error);
+      toast.error('Failed to initialize payment. Please try again.');
     }
   };
 
@@ -686,87 +771,16 @@ const EventBookingModal: React.FC<EventBookingModalProps> = ({ isOpen, onClose, 
               </div>
             </div>
 
-            {/* Payment Details Form */}
-            {paymentMethod === 'card' && (
-              <div className="space-y-4 mb-4 sm:mb-6">
-                <input
-                  type="text"
-                  placeholder="Card Number"
-                  value={cardDetails.number}
-                  onChange={(e) => {
-                    const formatted = formatCardNumber(e.target.value);
-                    setCardDetails(prev => ({ ...prev, number: formatted }));
-                  }}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 text-base"
-                  maxLength={19}
-                />
-                {cardDetails.number && !validateCardNumber(cardDetails.number) && (
-                  <p className="text-red-500 text-sm">Please enter a valid 16-digit card number</p>
-                )}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <input
-                    type="text"
-                    placeholder="MM/YY"
-                    value={cardDetails.expiry}
-                    onChange={(e) => {
-                      const formatted = formatExpiryDate(e.target.value);
-                      setCardDetails(prev => ({ ...prev, expiry: formatted }));
-                    }}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 text-base"
-                    maxLength={5}
-                  />
-                  <input
-                    type="text"
-                    placeholder="CVV"
-                    value={cardDetails.cvv}
-                    onChange={(e) => {
-                      const formatted = formatCVV(e.target.value);
-                      setCardDetails(prev => ({ ...prev, cvv: formatted }));
-                    }}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 text-base"
-                    maxLength={3}
-                  />
-                </div>
-                {cardDetails.expiry && !validateExpiryDate(cardDetails.expiry) && (
-                  <p className="text-red-500 text-sm">Please enter a valid expiry date (MM/YY)</p>
-                )}
-                {cardDetails.cvv && !validateCVV(cardDetails.cvv) && (
-                  <p className="text-red-500 text-sm">Please enter a valid 3-digit CVV</p>
-                )}
-                <input
-                  type="text"
-                  placeholder="Cardholder Name"
-                  value={cardDetails.name}
-                  onChange={(e) => setCardDetails(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 text-base"
-                />
-              </div>
-            )}
-
-            {paymentMethod === 'netbanking' && (
-              <div className="space-y-4 mb-4 sm:mb-6">
-                <select className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 text-base">
-                  <option value="">Select your bank</option>
-                  <option value="sbi">State Bank of India</option>
-                  <option value="hdfc">HDFC Bank</option>
-                  <option value="icici">ICICI Bank</option>
-                  <option value="axis">Axis Bank</option>
-                  <option value="kotak">Kotak Mahindra Bank</option>
-                </select>
-              </div>
-            )}
-
-            {paymentMethod === 'upi' && (
-              <div className="space-y-4 mb-4 sm:mb-6">
-                <input
-                  type="text"
-                  placeholder="Enter UPI ID (example@upi)"
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 text-base"
-                />
-                <div className="text-center">
-                  <p className="text-sm text-gray-600 mb-2">Or scan QR code</p>
-                  <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gray-200 rounded-lg mx-auto flex items-center justify-center">
-                    <span className="text-gray-500 text-xs sm:text-sm">QR Code</span>
+            {/* Razorpay Payment Info */}
+            {paymentMethod === 'razorpay' && (
+              <div className="bg-blue-50 p-4 rounded-lg mb-4 sm:mb-6">
+                <div className="flex items-center">
+                  <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 mr-3" />
+                  <div>
+                    <p className="font-medium text-blue-900 text-sm sm:text-base">Secure Payment via Razorpay</p>
+                    <p className="text-xs sm:text-sm text-blue-700">
+                      You'll be redirected to a secure payment gateway where you can pay using Credit/Debit Card, UPI, Net Banking, or other payment methods.
+                    </p>
                   </div>
                 </div>
               </div>

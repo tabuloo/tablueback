@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDSsPQ3Rzr3e7beF5CTZlM1BDEbG5Bef7o",
   authDomain: "tabloo-17e7f.firebaseapp.com",
   projectId: "tabloo-17e7f",
-  storageBucket: "tabloo-17e7f.firebasestorage.app",
+  storageBucket: "tabloo-17e7f.appspot.com",
   messagingSenderId: "662845885349",
   appId: "1:662845885349:web:7b9595f55cd3bd0841b64c",
   measurementId: "G-DXSSMD7DS9"
