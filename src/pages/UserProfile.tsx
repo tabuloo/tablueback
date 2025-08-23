@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { User, Phone, Mail, MapPin, Clock, Package, Calendar, Settings, Wallet, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Clock, Package, Calendar, Settings, Wallet, Plus, ArrowUpRight, ArrowDownLeft, Save, X as XIcon, Edit3 } from 'lucide-react';
 import { validateIndianPhoneNumber, formatPhoneNumber } from '../utils/validation';
 import AddressForm from '../components/AddressForm';
+import toast from 'react-hot-toast';
 
- const UserProfile: React.FC = () => {
-   const { user, updateUser, isDefaultUsername } = useAuth();
+const UserProfile: React.FC = () => {
+  const { user, updateUser, isDefaultUsername } = useAuth();
   const { orders, bookings } = useApp();
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'bookings' | 'addresses' | 'wallet'>('profile');
   const [editMode, setEditMode] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [profileData, setProfileData] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || ''
+  });
+  const [originalProfileData, setOriginalProfileData] = useState({
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || ''
@@ -22,34 +29,109 @@ import AddressForm from '../components/AddressForm';
   // Sync profileData with user data when user changes
   useEffect(() => {
     if (user) {
-      setProfileData({
+      const newProfileData = {
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || ''
-      });
+      };
+      setProfileData(newProfileData);
+      setOriginalProfileData(newProfileData);
     }
   }, [user]);
 
   const userOrders = orders.filter(order => order.userId === user?.id);
   const userBookings = bookings.filter(booking => booking.userId === user?.id);
 
+  // Check if profile data has changed
+  const hasProfileChanges = () => {
+    return (
+      profileData.name !== originalProfileData.name ||
+      profileData.phone !== originalProfileData.phone ||
+      profileData.email !== originalProfileData.email
+    );
+  };
 
+  // Validate profile data
+  const validateProfileData = () => {
+    if (!profileData.name.trim()) {
+      toast.error('Name is required');
+      return false;
+    }
+
+    if (profileData.name.trim().length < 2) {
+      toast.error('Name must be at least 2 characters long');
+      return false;
+    }
+
+    if (profileData.phone && !validateIndianPhoneNumber(profileData.phone)) {
+      toast.error('Please enter a valid 10-digit Indian phone number');
+      return false;
+    }
+
+    if (profileData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileData.email)) {
+      toast.error('Please enter a valid email address');
+      return false;
+    }
+
+    return true;
+  };
 
   const handleProfileUpdate = async () => {
-    if (profileData.phone && !validateIndianPhoneNumber(profileData.phone)) {
-      alert('Please enter a valid 10-digit Indian phone number');
+    if (!validateProfileData()) {
       return;
     }
+
+    setIsUpdating(true);
     
-    // Update user profile in database
-    const success = await updateUser({
-      name: profileData.name,
-      phone: profileData.phone
-    });
-    
-    if (success) {
-      setEditMode(false);
+    try {
+      // Prepare update data (only include changed fields)
+      const updateData: any = {};
+      
+      if (profileData.name !== originalProfileData.name) {
+        updateData.name = profileData.name.trim();
+      }
+      
+      if (profileData.phone !== originalProfileData.phone) {
+        updateData.phone = profileData.phone || null;
+      }
+      
+      if (profileData.email !== originalProfileData.email) {
+        updateData.email = profileData.email || null;
+      }
+
+      // Only update if there are actual changes
+      if (Object.keys(updateData).length === 0) {
+        toast.info('No changes to save');
+        setEditMode(false);
+        return;
+      }
+
+      // Update user profile in database
+      const success = await updateUser(updateData);
+      
+      if (success) {
+        // Update original data to reflect the new state
+        setOriginalProfileData({
+          name: profileData.name,
+          email: profileData.email,
+          phone: profileData.phone
+        });
+        
+        setEditMode(false);
+        toast.success('Profile updated successfully!');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile. Please try again.');
+    } finally {
+      setIsUpdating(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    // Reset profile data to original values
+    setProfileData(originalProfileData);
+    setEditMode(false);
   };
 
   const handleSaveAddress = (addressData: any) => {
@@ -228,57 +310,92 @@ import AddressForm from '../components/AddressForm';
                 <div className="p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
                     <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 sm:mb-0">Profile Information</h2>
-                    <button
-                      onClick={() => editMode ? handleProfileUpdate() : setEditMode(true)}
-                      className="flex items-center justify-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                    >
-                      <Settings className="h-4 w-4" />
-                      <span>{editMode ? 'Save Changes' : 'Edit Profile'}</span>
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      {editMode ? (
+                        <>
+                          <button
+                            onClick={handleCancelEdit}
+                            disabled={isUpdating}
+                            className="flex items-center justify-center space-x-2 px-3 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50"
+                          >
+                            <XIcon className="h-4 w-4" />
+                            <span>Cancel</span>
+                          </button>
+                          <button
+                            onClick={handleProfileUpdate}
+                            disabled={isUpdating || !hasProfileChanges()}
+                            className="flex items-center justify-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isUpdating ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <span>Updating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4" />
+                                <span>Save Changes</span>
+                              </>
+                            )}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setEditMode(true)}
+                          className="flex items-center justify-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                          <span>Edit Profile</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-4 sm:space-y-6">
-                                         <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                         <User className="h-4 w-4 inline mr-1" />
-                         Full Name
-                         {isDefaultUsername(profileData.name) && (
-                           <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                             Temporary
-                           </span>
-                         )}
-                       </label>
-                       {editMode ? (
-                         <input
-                           type="text"
-                           value={profileData.name}
-                           onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                           placeholder={isDefaultUsername(profileData.name) ? "Enter your real name" : "Enter your name"}
-                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm ${
-                             isDefaultUsername(profileData.name) 
-                               ? 'border-yellow-300 bg-yellow-50 focus:ring-yellow-500' 
-                               : 'border-gray-300'
-                           }`}
-                         />
-                       ) : (
-                         <div className="relative">
-                           <p className={`px-3 py-2 rounded-lg text-sm ${
-                             isDefaultUsername(profileData.name) 
-                               ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' 
-                               : 'bg-gray-50 text-gray-900'
-                           }`}>
-                             {profileData.name}
-                           </p>
-                           {isDefaultUsername(profileData.name) && (
-                             <div className="absolute -top-2 -right-2">
-                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
-                                 Temporary
-                               </span>
-                             </div>
-                           )}
-                         </div>
-                       )}
-                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <User className="h-4 w-4 inline mr-1" />
+                        Full Name *
+                        {isDefaultUsername(profileData.name) && (
+                          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Temporary
+                          </span>
+                        )}
+                      </label>
+                      {editMode ? (
+                        <input
+                          type="text"
+                          value={profileData.name}
+                          onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder={isDefaultUsername(profileData.name) ? "Enter your real name" : "Enter your name"}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm ${
+                            isDefaultUsername(profileData.name) 
+                              ? 'border-yellow-300 bg-yellow-50 focus:ring-yellow-500' 
+                              : 'border-gray-300'
+                          }`}
+                        />
+                      ) : (
+                        <div className="relative">
+                          <p className={`px-3 py-2 rounded-lg text-sm ${
+                            isDefaultUsername(profileData.name) 
+                              ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' 
+                              : 'bg-gray-50 text-gray-900'
+                          }`}>
+                            {profileData.name}
+                          </p>
+                          {isDefaultUsername(profileData.name) && (
+                            <div className="absolute -top-2 -right-2">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                Temporary
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {editMode && profileData.name.trim().length > 0 && profileData.name.trim().length < 2 && (
+                        <p className="text-red-500 text-xs mt-1">Name must be at least 2 characters long</p>
+                      )}
+                    </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -290,10 +407,14 @@ import AddressForm from '../components/AddressForm';
                           type="email"
                           value={profileData.email}
                           onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="Enter your email address"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                         />
                       ) : (
                         <p className="text-gray-900 px-3 py-2 bg-gray-50 rounded-lg text-sm">{profileData.email || 'Not provided'}</p>
+                      )}
+                      {editMode && profileData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileData.email) && (
+                        <p className="text-red-500 text-xs mt-1">Please enter a valid email address</p>
                       )}
                     </div>
 
@@ -320,24 +441,25 @@ import AddressForm from '../components/AddressForm';
                           )}
                         </div>
                       ) : (
-                        <p className="text-gray-900 px-3 py-2 bg-gray-50 rounded-lg text-sm">{profileData.phone}</p>
+                        <p className="text-gray-900 px-3 py-2 bg-gray-50 rounded-lg text-sm">{profileData.phone || 'Not provided'}</p>
                       )}
                     </div>
 
-                    {editMode && (
-                      <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-4">
-                        <button
-                          onClick={() => setEditMode(false)}
-                          className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleProfileUpdate}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                        >
-                          Save Changes
-                        </button>
+                    {/* Profile Update Summary */}
+                    {editMode && hasProfileChanges() && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="font-medium text-blue-900 text-sm mb-2">Changes to be saved:</h4>
+                        <div className="text-xs text-blue-700 space-y-1">
+                          {profileData.name !== originalProfileData.name && (
+                            <p>• Name: {originalProfileData.name} → {profileData.name}</p>
+                          )}
+                          {profileData.phone !== originalProfileData.phone && (
+                            <p>• Phone: {originalProfileData.phone || 'Not set'} → {profileData.phone || 'Not set'}</p>
+                          )}
+                          {profileData.email !== originalProfileData.email && (
+                            <p>• Email: {originalProfileData.email || 'Not set'} → {profileData.email || 'Not set'}</p>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -609,8 +731,6 @@ import AddressForm from '../components/AddressForm';
             </div>
           </div>
         )}
-
-
       </div>
     </div>
   );

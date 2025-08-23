@@ -16,7 +16,6 @@ const PostServiceModal: React.FC<PostServiceModalProps> = ({ isOpen, onClose }) 
   const [formData, setFormData] = useState({
     businessName: '',
     description: '',
-    categories: [] as string[],
     experience: 1,
     location: '',
     contactInfo: {
@@ -45,13 +44,7 @@ const PostServiceModal: React.FC<PostServiceModalProps> = ({ isOpen, onClose }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const eventCategories = [
-    { value: 'wedding', label: 'Wedding', icon: '💒' },
-    { value: 'birthday', label: 'Birthday', icon: '🎂' },
-    { value: 'corporate', label: 'Corporate', icon: '🏢' },
-    { value: 'parties', label: 'Parties', icon: '🎉' },
-    { value: 'others', label: 'Others', icon: '🎊' }
-  ];
+
 
   const handleInputChange = (field: string, value: any) => {
     if (field.includes('.')) {
@@ -74,14 +67,7 @@ const PostServiceModal: React.FC<PostServiceModalProps> = ({ isOpen, onClose }) 
     }
   };
 
-  const handleCategoryToggle = (category: string) => {
-    setFormData(prev => ({
-      ...prev,
-      categories: prev.categories.includes(category)
-        ? prev.categories.filter(c => c !== category)
-        : [...prev.categories, category]
-    }));
-  };
+
 
   const addService = () => {
     setFormData(prev => ({
@@ -119,9 +105,6 @@ const PostServiceModal: React.FC<PostServiceModalProps> = ({ isOpen, onClose }) 
     }
     if (!formData.description.trim()) {
       newErrors.description = 'Description is required';
-    }
-    if (formData.categories.length === 0) {
-      newErrors.categories = 'Please select at least one category';
     }
     if (!formData.location.trim()) {
       newErrors.location = 'Location is required';
@@ -166,7 +149,7 @@ const PostServiceModal: React.FC<PostServiceModalProps> = ({ isOpen, onClose }) 
         userId: user.id,
         businessName: formData.businessName,
         description: formData.description,
-        categories: formData.categories,
+        categories: [],
         experience: formData.experience,
         location: formData.location,
         contactInfo: formData.contactInfo,
@@ -194,13 +177,10 @@ const PostServiceModal: React.FC<PostServiceModalProps> = ({ isOpen, onClose }) 
       setFormData({
         businessName: '',
         description: '',
-        categories: [],
         experience: 1,
         location: '',
         contactInfo: { phone: '', email: '', website: '' },
-        portfolio: { images: [], videos: [], pastEvents: [] },
         services: [],
-        availability: { dates: [], timeSlots: [] },
         pricing: { basePrice: 10000, packages: [] }
       });
       setImages([]);
@@ -271,32 +251,7 @@ const PostServiceModal: React.FC<PostServiceModalProps> = ({ isOpen, onClose }) 
             )}
           </div>
 
-          {/* Categories */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Event Categories *
-            </label>
-            <div className="grid grid-cols-5 gap-3">
-              {eventCategories.map((category) => (
-                <button
-                  key={category.value}
-                  type="button"
-                  onClick={() => handleCategoryToggle(category.value)}
-                  className={`p-3 rounded-lg border-2 transition-colors text-center ${
-                    formData.categories.includes(category.value)
-                      ? 'border-red-500 bg-red-50 text-red-700'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="text-2xl mb-1">{category.icon}</div>
-                  <div className="text-xs font-medium">{category.label}</div>
-                </button>
-              ))}
-            </div>
-            {errors.categories && (
-              <p className="text-red-500 text-sm mt-1">{errors.categories}</p>
-            )}
-          </div>
+
 
           {/* Experience & Location */}
           <div className="grid grid-cols-2 gap-6">

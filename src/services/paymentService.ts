@@ -40,6 +40,81 @@ class PaymentService {
     }
   }
 
+  async createTableBookingOrder(bookingData: any) {
+    try {
+      console.log('Creating table booking order with Razorpay');
+      
+      const options = {
+        key: this.razorpayKey,
+        amount: bookingData.amount * 100,
+        currency: 'INR',
+        name: 'Tabuloo',
+        description: 'Table Booking Payment',
+        receipt: `table_${Date.now()}`,
+        prefill: {
+          name: bookingData.customerName,
+          email: bookingData.customerEmail || 'customer@tabuloo.com',
+          contact: bookingData.customerPhone
+        },
+        notes: {
+          customer_name: bookingData.customerName,
+          customer_phone: bookingData.customerPhone,
+          restaurant: bookingData.restaurantName,
+          date: bookingData.date,
+          time: bookingData.time,
+          customers: bookingData.customers,
+          booking_type: 'table'
+        },
+        theme: {
+          color: '#DC2626'
+        }
+      };
+
+      return options;
+    } catch (error) {
+      console.error('Table booking order creation error:', error);
+      throw error;
+    }
+  }
+
+  async createEventBookingOrder(bookingData: any) {
+    try {
+      console.log('Creating event booking order with Razorpay');
+      
+      const options = {
+        key: this.razorpayKey,
+        amount: bookingData.amount * 100,
+        currency: 'INR',
+        name: 'Tabuloo',
+        description: 'Event Booking Payment',
+        receipt: `event_${Date.now()}`,
+        prefill: {
+          name: bookingData.customerName,
+          email: bookingData.customerEmail || 'customer@tabuloo.com',
+          contact: bookingData.customerPhone
+        },
+        notes: {
+          customer_name: bookingData.customerName,
+          customer_phone: bookingData.customerPhone,
+          venue: bookingData.venueName,
+          occasion: bookingData.occasion,
+          date: bookingData.date,
+          time: bookingData.time,
+          attendees: bookingData.attendees,
+          booking_type: 'event'
+        },
+        theme: {
+          color: '#DC2626'
+        }
+      };
+
+      return options;
+    } catch (error) {
+      console.error('Event booking order creation error:', error);
+      throw error;
+    }
+  }
+
   async verifyPayment(paymentId: string, orderId: string) {
     try {
       console.log('Verifying payment:', { paymentId, orderId });
@@ -131,6 +206,141 @@ class PaymentService {
       rzp.open();
     } catch (error) {
       console.error('Payment initialization error:', error);
+      onError(error);
+    }
+  }
+
+  async initializeTableBookingPayment(
+    bookingData: any,
+    user: any,
+    onSuccess: (response: any) => void,
+    onError: (error: any) => void
+  ) {
+    try {
+      console.log('Initializing table booking payment:', bookingData);
+      
+      // Check if Razorpay is loaded
+      if (!this.checkRazorpayLoaded()) {
+        throw new Error('Razorpay is not loaded. Please refresh the page and try again.');
+      }
+
+      // Initialize Razorpay for table booking
+      const options = {
+        key: this.razorpayKey,
+        amount: bookingData.amount * 100,
+        currency: 'INR',
+        name: 'Tabuloo',
+        description: 'Table Booking Payment',
+        receipt: `table_${Date.now()}`,
+        handler: onSuccess,
+        prefill: {
+          name: user.name,
+          email: user.email,
+          contact: bookingData.phone
+        },
+        notes: {
+          customer_name: user.name,
+          customer_email: user.email,
+          customer_phone: bookingData.phone,
+          restaurant: bookingData.restaurantName,
+          date: bookingData.date,
+          time: bookingData.time,
+          customers: bookingData.customers,
+          booking_type: 'table'
+        },
+        theme: {
+          color: '#DC2626'
+        },
+        modal: {
+          ondismiss: () => {
+            console.log('Payment modal dismissed');
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      
+      rzp.on('payment.failed', (response: any) => {
+        console.error('Payment failed:', response);
+        onError(new Error(`Payment failed: ${response.error.description || 'Unknown error'}`));
+      });
+      
+      rzp.on('payment.cancelled', () => {
+        console.log('Payment cancelled by user');
+        onError(new Error('Payment cancelled by user'));
+      });
+      
+      rzp.open();
+    } catch (error) {
+      console.error('Table booking payment initialization error:', error);
+      onError(error);
+    }
+  }
+
+  async initializeEventBookingPayment(
+    bookingData: any,
+    user: any,
+    onSuccess: (response: any) => void,
+    onError: (error: any) => void
+  ) {
+    try {
+      console.log('Initializing event booking payment:', bookingData);
+      
+      // Check if Razorpay is loaded
+      if (!this.checkRazorpayLoaded()) {
+        throw new Error('Razorpay is not loaded. Please refresh the page and try again.');
+      }
+
+      // Initialize Razorpay for event booking
+      const options = {
+        key: this.razorpayKey,
+        amount: bookingData.amount * 100,
+        currency: 'INR',
+        name: 'Tabuloo',
+        description: 'Event Booking Payment',
+        receipt: `event_${Date.now()}`,
+        handler: onSuccess,
+        prefill: {
+          name: user.name,
+          email: user.email,
+          contact: bookingData.phone
+        },
+        notes: {
+          customer_name: user.name,
+          customer_email: user.email,
+          customer_phone: bookingData.phone,
+          venue: bookingData.venueName,
+          occasion: bookingData.occasion,
+          date: bookingData.date,
+          time: bookingData.time,
+          attendees: bookingData.attendees,
+          booking_type: 'event'
+        },
+        theme: {
+          color: '#DC2626'
+        },
+        modal: {
+          ondismiss: () => {
+            console.log('Payment modal dismissed');
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      
+      rzp.on('payment.failed', (response: any) => {
+        console.error('Payment failed:', response);
+        onError(new Error(`Payment failed: ${response.error.description || 'Unknown error'}`));
+      });
+      
+      rzp.on('payment.cancelled', () => {
+        console.log('Payment cancelled by user');
+        onError(new Error('Payment cancelled by user'));
+      });
+      
+      rzp.open();
+    } catch (error) {
+      console.error('Event booking payment initialization error:', error);
       onError(error);
     }
   }

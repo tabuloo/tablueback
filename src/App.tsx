@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -7,6 +7,7 @@ import { CartProvider } from './contexts/CartContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import LoadingSpinner from './components/LoadingSpinner';
+import NetworkStatus from './components/NetworkStatus';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
 import CartPage from './pages/CartPage';
@@ -24,9 +25,36 @@ import EventPlanning from './pages/EventPlanning';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
+  const [showTimeoutMessage, setShowTimeoutMessage] = useState(false);
+
+  // Show timeout message if loading takes too long
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        setShowTimeoutMessage(true);
+      }
+    }, 15000); // 15 seconds
+
+    return () => clearTimeout(timeoutId);
+  }, [loading]);
 
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <LoadingSpinner />
+        {showTimeoutMessage && (
+          <div className="mt-4 text-center">
+            <p className="text-gray-600 mb-2">Taking longer than expected...</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            >
+              Reload Page
+            </button>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -95,6 +123,7 @@ function App() {
       <AppProvider>
         <CartProvider>
           <Router>
+            <NetworkStatus />
             <AppContent />
             <Toaster
               position="top-right"

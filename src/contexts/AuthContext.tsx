@@ -90,94 +90,172 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Retry mechanism for Firebase operations
+  const retryOperation = async <T,>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    delay: number = 1000
+  ): Promise<T> => {
+    let lastError: Error;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error as Error;
+        console.warn(`Attempt ${attempt} failed:`, error);
+        
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, delay * attempt));
+        }
+      }
+    }
+    
+    throw lastError!;
+  };
+
   // Check for stored user data on app initialization
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         console.log('Initializing authentication...');
+        
+        // Set a timeout to prevent hanging
+        const timeoutId = setTimeout(() => {
+          console.log('Auth initialization timeout, falling back to localStorage');
+          setLoading(false);
+          // Fallback to localStorage if Firebase takes too long
+          const storedUser = localStorage.getItem('currentUser');
+          if (storedUser) {
+            try {
+              const userData = JSON.parse(storedUser);
+              setUser(userData);
+              console.log('User restored from localStorage after timeout:', userData);
+            } catch (error) {
+              console.error('Error parsing stored user after timeout:', error);
+              localStorage.removeItem('currentUser');
+            }
+          }
+        }, 10000); // 10 second timeout
+
         // First check Firebase Auth state
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-          if (firebaseUser) {
-            console.log('Firebase user found:', firebaseUser.uid);
-            // Get user data from Firestore
-            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              const userObj: User = {
-                id: firebaseUser.uid,
-                name: userData.name || firebaseUser.displayName || 'User',
-                email: userData.email || firebaseUser.email || undefined,
-                phone: userData.phone,
-                role: userData.role || 'public_user',
-                restaurantId: userData.restaurantId,
-                walletBalance: userData.walletBalance || 0
-              };
-              setUser(userObj);
-              // Store in localStorage for persistence
-              localStorage.setItem('currentUser', JSON.stringify(userObj));
-              console.log('User set from Firebase Auth:', userObj);
+          try {
+            clearTimeout(timeoutId); // Clear timeout if Firebase responds
+            
+            if (firebaseUser) {
+              console.log('Firebase user found:', firebaseUser.uid);
+              // Get user data from Firestore with retry
+              const userDoc = await retryOperation(() => getDoc(doc(db, 'users', firebaseUser.uid)));
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const userObj: User = {
+                  id: firebaseUser.uid,
+                  name: userData.name || firebaseUser.displayName || 'User',
+                  email: userData.email || firebaseUser.email || undefined,
+                  phone: userData.phone,
+                  role: userData.role || 'public_user',
+                  restaurantId: userData.restaurantId,
+                  walletBalance: userData.walletBalance || 0
+                };
+                setUser(userObj);
+                // Store in localStorage for persistence
+                localStorage.setItem('currentUser', JSON.stringify(userObj));
+                console.log('User set from Firebase Auth:', userObj);
+              }
+            } else {
+              console.log('No Firebase user, checking localStorage...');
+              // Check localStorage for custom auth users (restaurant owners, public users, admin)
+              const storedUser = localStorage.getItem('currentUser');
+              if (storedUser) {
+                try {
+                  const userData = JSON.parse(storedUser);
+                  console.log('Found stored user:', userData);
+                  // Verify user still exists in Firestore with retry
+                  const userDoc = await retryOperation(() => getDoc(doc(db, 'users', userData.id)));
+                  if (userDoc.exists()) {
+                    const firestoreData = userDoc.data();
+                    
+                    // For public users, ensure wallet balance is 0 and update both Firestore and localStorage
+                    if (userData.role === 'public_user') {
+                      if (firestoreData.walletBalance !== 0) {
+                        // Update Firestore to set wallet balance to 0 with retry
+                        await retryOperation(() => updateDoc(doc(db, 'users', userData.id), {
+                          walletBalance: 0
+                        }));
+                        console.log('Updated wallet balance to 0 in Firestore for existing user');
+                      }
+                      
+                      // Update local user data to have 0 wallet balance
+                      const updatedUserData = {
+                        ...userData,
+                        walletBalance: 0
+                      };
+                      
+                      // Update localStorage
+                      localStorage.setItem('currentUser', JSON.stringify(updatedUserData));
+                      
+                      setUser(updatedUserData);
+                      console.log('User restored from localStorage with 0 wallet balance:', updatedUserData);
+                    } else {
+                      setUser(userData);
+                      console.log('User restored from localStorage:', userData);
+                    }
+                  } else {
+                    // User no longer exists, clear storage
+                    console.log('User no longer exists in Firestore, clearing storage');
+                    localStorage.removeItem('currentUser');
+                    setUser(null);
+                  }
+                } catch (error) {
+                  console.error('Error parsing stored user:', error);
+                  localStorage.removeItem('currentUser');
+                  setUser(null);
+                }
+              } else {
+                console.log('No stored user found');
+                setUser(null);
+              }
             }
-                     } else {
-             console.log('No Firebase user, checking localStorage...');
-             // Check localStorage for custom auth users (restaurant owners, public users, admin)
-             const storedUser = localStorage.getItem('currentUser');
-             if (storedUser) {
-               try {
-                 const userData = JSON.parse(storedUser);
-                 console.log('Found stored user:', userData);
-                 // Verify user still exists in Firestore
-                 const userDoc = await getDoc(doc(db, 'users', userData.id));
-                 if (userDoc.exists()) {
-                   const firestoreData = userDoc.data();
-                   
-                   // For public users, ensure wallet balance is 0 and update both Firestore and localStorage
-                   if (userData.role === 'public_user') {
-                     if (firestoreData.walletBalance !== 0) {
-                       // Update Firestore to set wallet balance to 0
-                       await updateDoc(doc(db, 'users', userData.id), {
-                         walletBalance: 0
-                       });
-                       console.log('Updated wallet balance to 0 in Firestore for existing user');
-                     }
-                     
-                     // Update local user data to have 0 wallet balance
-                     const updatedUserData = {
-                       ...userData,
-                       walletBalance: 0
-                     };
-                     
-                     // Update localStorage
-                     localStorage.setItem('currentUser', JSON.stringify(updatedUserData));
-                     
-                     setUser(updatedUserData);
-                     console.log('User restored from localStorage with 0 wallet balance:', updatedUserData);
-                   } else {
-                     setUser(userData);
-                     console.log('User restored from localStorage:', userData);
-                   }
-                 } else {
-                   // User no longer exists, clear storage
-                   console.log('User no longer exists in Firestore, clearing storage');
-                   localStorage.removeItem('currentUser');
-                   setUser(null);
-                 }
-               } catch (error) {
-                 console.error('Error parsing stored user:', error);
-                 localStorage.removeItem('currentUser');
-                 setUser(null);
-               }
-             } else {
-               console.log('No stored user found');
-               setUser(null);
-             }
-           }
-          setLoading(false);
+            setLoading(false);
+          } catch (error) {
+            console.error('Error in Firebase auth state change:', error);
+            clearTimeout(timeoutId);
+            setLoading(false);
+            // Fallback to localStorage on error
+            const storedUser = localStorage.getItem('currentUser');
+            if (storedUser) {
+              try {
+                const userData = JSON.parse(storedUser);
+                setUser(userData);
+                console.log('User restored from localStorage after error:', userData);
+              } catch (parseError) {
+                console.error('Error parsing stored user after error:', parseError);
+                localStorage.removeItem('currentUser');
+              }
+            }
+          }
         });
 
-        return () => unsubscribe();
+        return () => {
+          clearTimeout(timeoutId);
+          unsubscribe();
+        };
       } catch (error) {
         console.error('Auth initialization error:', error);
         setLoading(false);
+        // Fallback to localStorage on initialization error
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+            console.log('User restored from localStorage after init error:', userData);
+          } catch (parseError) {
+            console.error('Error parsing stored user after init error:', parseError);
+            localStorage.removeItem('currentUser');
+          }
+        }
       }
     };
 
