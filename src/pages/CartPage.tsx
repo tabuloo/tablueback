@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, MapPin, User, Phone, Home, CreditCard, DollarSign, ShoppingBag, Truck } from 'lucide-react';
+import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, MapPin, User, Phone, Home, CreditCard, DollarSign, ShoppingBag, Truck, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import paymentService from '../services/paymentService';
 import GoogleMapPicker from '../components/GoogleMapPicker';
@@ -252,21 +252,21 @@ const CartPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-50 py-4 md:py-8 pb-32 md:pb-8">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4 md:mb-6">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors text-sm md:text-base"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Home
+            Home
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Your Cart</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Your Cart</h1>
           <button
             onClick={clearCart}
-            className="text-red-600 hover:text-red-800 transition-colors"
+            className="text-red-600 hover:text-red-800 transition-colors text-sm md:text-base"
           >
             Clear Cart
           </button>
@@ -275,26 +275,51 @@ const CartPage: React.FC = () => {
         <div className="space-y-6">
           {/* Cart Items */}
           <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Order Items ({items.length})</h2>
+            <div className="p-4 md:p-6 border-b border-gray-200">
+              <h2 className="text-base md:text-lg font-semibold text-gray-900">Order Items ({items.length})</h2>
             </div>
             <div className="divide-y divide-gray-200">
               {items.map((item) => (
-                <div key={item.id} className="p-6 flex items-center space-x-4">
+                <div key={item.id} className="p-4 md:p-6 flex items-start md:items-center space-x-3 md:space-x-4 md:bg-transparent md:border-0 bg-white">
                   <img
                     src={item.image}
                     alt={item.name}
-                    className="w-20 h-20 object-cover rounded-lg"
+                    className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-xl flex-shrink-0 shadow-sm"
                     onError={(e) => {
                       e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0zMiAyMEMyNC4yNjgxIDIwIDE4IDI2LjI2ODEgMTggMzRDMjAgMzQgMjIgMzUuMzQzMSAyMiAzOEMyMiA0MC42NTY5IDIwLjY1NjkgNDIgMTggNDJIMTZDMjQuMjY4MSA0MiAzMiAzNC4yNjgxIDMyIDI2VjIwWiIgZmlsbD0iI0QxRDVEM0EiLz4KPC9zdmc+';
                     }}
                   />
                   <div className="flex-1">
-                    <h3 className="font-medium text-gray-900 text-lg">{item.name}</h3>
-                    <p className="text-sm text-gray-600">{item.restaurantName}</p>
-                    <p className="text-sm text-gray-500">{item.itemCategory}</p>
+                    <div className="flex items-center justify-between md:block">
+                      <h3 className="font-semibold text-gray-900 text-[15px] md:text-lg line-clamp-1">{item.name}</h3>
+                      <span className="md:hidden inline-block px-2 py-0.5 text-[10px] rounded-full bg-gray-100 text-gray-700 ml-2">₹{item.price}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-0.5 md:mt-0">
+                      <span className={`w-2 h-2 rounded-full ${item.category === 'veg' ? 'bg-green-600' : 'bg-red-600'}`}></span>
+                      <p className="text-[11px] md:text-sm text-gray-600 line-clamp-1">{item.restaurantName}</p>
+                    </div>
+                    <p className="text-[11px] md:text-sm text-gray-500">{item.itemCategory}</p>
+                    <div className="mt-2 flex items-center justify-between md:hidden">
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                          className="p-2 rounded-full bg-gray-100 active:scale-95 shadow-sm"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <span className="w-8 text-center font-medium">{item.quantity}</span>
+                        <button
+                          onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                          className="p-2 rounded-full bg-gray-100 active:scale-95 shadow-sm"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <p className="font-semibold text-gray-900">₹{item.price * item.quantity}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3">
+                  {/* Desktop controls */}
+                  <div className="hidden md:flex items-center space-x-3">
                     <button
                       onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
                       className="p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -309,13 +334,14 @@ const CartPage: React.FC = () => {
                       <Plus className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="text-right">
+                  <div className="hidden md:block text-right">
                     <p className="font-semibold text-gray-900 text-lg">₹{item.price * item.quantity}</p>
                     <p className="text-sm text-gray-600">₹{item.price} each</p>
                   </div>
                   <button
                     onClick={() => removeFromCart(item.id)}
                     className="text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-50 transition-colors"
+                    aria-label="Remove item"
                   >
                     <Trash2 className="h-5 w-5" />
                   </button>
@@ -336,37 +362,37 @@ const CartPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
                   onClick={() => setOrderType('pickup')}
-                  className={`p-6 border-2 rounded-lg transition-all group ${
+                  className={`p-4 md:p-6 border-2 rounded-xl transition-all group ${
                     orderType === 'pickup'
-                      ? 'border-red-500 bg-red-50'
+                      ? 'border-red-500 bg-red-50 shadow-sm'
                       : 'border-gray-200 hover:border-red-300'
                   }`}
                 >
                   <div className="text-center">
-                    <ShoppingBag className={`h-8 w-8 mx-auto mb-3 group-hover:scale-110 transition-transform ${
+                    <ShoppingBag className={`h-7 w-7 md:h-8 md:w-8 mx-auto mb-2 md:mb-3 group-hover:scale-110 transition-transform ${
                       orderType === 'pickup' ? 'text-red-600' : 'text-gray-600'
                     }`} />
-                    <h4 className="text-base font-semibold text-gray-900 mb-2">Self Pickup</h4>
-                    <p className="text-gray-600 text-sm">Pick up your order from the restaurant</p>
-                    <p className="text-xs text-green-600 mt-2">No delivery charges</p>
+                    <h4 className="text-sm md:text-base font-semibold text-gray-900 mb-1">Self Pickup</h4>
+                    <p className="text-gray-600 text-xs md:text-sm">Pick up from the restaurant</p>
+                    <p className="text-[11px] text-green-600 mt-1">No delivery charge</p>
                   </div>
                 </button>
                 
                 <button
                   onClick={() => setOrderType('delivery')}
-                  className={`p-6 border-2 rounded-lg transition-all group ${
+                  className={`p-4 md:p-6 border-2 rounded-xl transition-all group ${
                     orderType === 'delivery'
-                      ? 'border-red-500 bg-red-50'
+                      ? 'border-red-500 bg-red-50 shadow-sm'
                       : 'border-gray-200 hover:border-red-300'
                   }`}
                 >
                   <div className="text-center">
-                    <Truck className={`h-8 w-8 mx-auto mb-3 group-hover:scale-110 transition-transform ${
+                    <Truck className={`h-7 w-7 md:h-8 md:w-8 mx-auto mb-2 md:mb-3 group-hover:scale-110 transition-transform ${
                       orderType === 'delivery' ? 'text-red-600' : 'text-gray-600'
                     }`} />
-                    <h4 className="text-base font-semibold text-gray-900 mb-2">Home Delivery</h4>
-                    <p className="text-gray-600 text-sm">Get it delivered to your doorstep</p>
-                    <p className="text-xs text-orange-600 mt-2">Delivery charges apply</p>
+                    <h4 className="text-sm md:text-base font-semibold text-gray-900 mb-1">Home Delivery</h4>
+                    <p className="text-gray-600 text-xs md:text-sm">Delivered to your doorstep</p>
+                    <p className="text-[11px] text-orange-600 mt-1">Delivery charges apply</p>
                   </div>
                 </button>
               </div>
@@ -584,10 +610,10 @@ const CartPage: React.FC = () => {
 
           {/* Order Summary */}
           <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
+            <div className="p-4 md:p-6 border-b border-gray-200">
+              <h2 className="text-base md:text-lg font-semibold text-gray-900">Order Summary</h2>
             </div>
-            <div className="p-6">
+            <div className="p-4 md:p-6">
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>
@@ -611,11 +637,31 @@ const CartPage: React.FC = () => {
               <button
                 onClick={handleCheckout}
                 disabled={isProcessing}
-                className="w-full bg-red-800 text-white py-4 rounded-lg font-semibold text-lg hover:bg-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+                className="w-full bg-red-800 text-white py-3 md:py-4 rounded-lg font-semibold text-base md:text-lg hover:bg-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4 md:mt-6"
               >
                 {isProcessing ? 'Processing...' : `Place ${orderType === 'delivery' ? 'Order' : 'Pickup'} (₹${orderType === 'delivery' ? getTotalPrice() + 40 : getTotalPrice()})`}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+      {/* Mobile sticky checkout bar - positioned below BottomNav */}
+      <div className="md:hidden fixed bottom-24 left-0 right-0 z-30">
+        <div className="mx-auto max-w-4xl px-3">
+          <div className="bg-white border rounded-xl shadow-lg p-3 flex items-center justify-between">
+            <div>
+              <div className="text-xs text-gray-500">Total</div>
+              <div className="text-lg font-semibold">
+                ₹{orderType === 'delivery' ? getTotalPrice() + 40 : getTotalPrice()}
+              </div>
+            </div>
+            <button
+              onClick={handleCheckout}
+              disabled={isProcessing}
+              className="bg-red-800 text-white px-4 py-2 rounded-lg font-semibold text-sm disabled:opacity-50"
+            >
+              {isProcessing ? 'Processing...' : 'Checkout'}
+            </button>
           </div>
         </div>
       </div>
