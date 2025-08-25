@@ -6,6 +6,7 @@ import { AppProvider } from './contexts/AppContext';
 import { CartProvider } from './contexts/CartContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import BottomNav from './components/BottomNav';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
@@ -31,8 +32,10 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header />
-      <main className="flex-1">
+      <div className="hidden md:block">
+        <Header />
+      </div>
+      <main className="flex-1 pb-16 md:pb-0">
         <Routes>
           <Route 
             path="/" 
@@ -74,6 +77,7 @@ const AppContent: React.FC = () => {
             path="/restaurant-owner" 
             element={<RestaurantOwnerDashboard />} 
           />
+          <Route path="/auth" element={<AuthPage />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-conditions" element={<TermsConditions />} />
         <Route path="/refund-policy" element={<RefundPolicy />} />
@@ -84,7 +88,10 @@ const AppContent: React.FC = () => {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <Footer />
+      <BottomNav />
+      <div className="hidden md:block">
+        <Footer />
+      </div>
     </div>
   );
 };

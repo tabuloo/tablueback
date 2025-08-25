@@ -14,7 +14,7 @@ const FloatingChatButton: React.FC = () => {
       {/* Floating Chat Button */}
       <button
         onClick={toggleChat}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-red-800 to-red-900 text-white rounded-full shadow-lg hover:from-red-900 hover:to-red-950 transition-all duration-300 z-40 flex items-center justify-center group"
+        className="fixed bottom-24 md:bottom-6 right-4 md:right-6 w-14 h-14 bg-gradient-to-r from-red-800 to-red-900 text-white rounded-full shadow-lg hover:from-red-900 hover:to-red-950 transition-all duration-300 z-50 flex items-center justify-center group"
         title="Get Tabuloo Support"
       >
         {isChatOpen ? (

@@ -30,6 +30,7 @@ import BookTableModal from '../components/booking/BookTableModal';
 import OrderFoodModal from '../components/booking/OrderFoodModal';
 import EventBookingModal from '../components/booking/EventBookingModal';
 import FloatingChatButton from '../components/chat/FloatingChatButton';
+import toast from 'react-hot-toast';
 
 const HomePage: React.FC = () => {
   const { user, isDefaultUsername } = useAuth();
@@ -41,6 +42,116 @@ const HomePage: React.FC = () => {
   const [showEventBooking, setShowEventBooking] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>('');
   const [filterType, setFilterType] = useState<'all' | 'restaurant' | 'hotel' | 'resort'>('all');
+  const [searchText, setSearchText] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
+
+  const reverseGeocode = (latitude: number, longitude: number) => {
+    if (window.google && window.google.maps) {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode(
+        { location: { lat: latitude, lng: longitude } },
+        (results: any, status: any) => {
+          setIsLocating(false);
+          if (status === 'OK' && results && results[0]) {
+            setSearchText(results[0].formatted_address);
+          } else {
+            toast.error('Unable to fetch address. Try again.');
+          }
+        }
+      );
+    } else {
+      setIsLocating(false);
+      toast.error('Maps not ready. Please try again.');
+    }
+  };
+
+  const attemptLocate = (options: PositionOptions): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+  };
+
+  const watchOnce = (options: PositionOptions): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      const id = navigator.geolocation.watchPosition(
+        (pos) => {
+          navigator.geolocation.clearWatch(id);
+          resolve(pos);
+        },
+        (err) => {
+          navigator.geolocation.clearWatch(id);
+          reject(err);
+        },
+        options
+      );
+      // Safety timeout
+      setTimeout(() => {
+        navigator.geolocation.clearWatch(id);
+        reject(new Error('watchPosition timeout'));
+      }, 15000);
+    });
+  };
+
+  const handleDetectLocation = async () => {
+    if (!navigator.geolocation) return;
+    setIsLocating(true);
+    try {
+      // Check permission state when supported
+      const permissionsApi = (navigator as any).permissions;
+      if (permissionsApi?.query) {
+        try {
+          const status = await permissionsApi.query({ name: 'geolocation' as any });
+          if (status.state === 'denied') {
+            setIsLocating(false);
+            toast.error('Location permission is blocked. Enable it in browser settings.');
+            return;
+          }
+        } catch {
+          // Ignore permissions API errors
+        }
+      }
+
+      // 1) Try high accuracy first
+      try {
+        const pos = await attemptLocate({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+        reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        return;
+      } catch (err: any) {
+        // 2) If unknown/temporary failure → brief delay then low accuracy retry
+        if (err?.code === (err?.POSITION_UNAVAILABLE ?? 2)) {
+          await new Promise((r) => setTimeout(r, 2000));
+          try {
+            const pos2 = await attemptLocate({ enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 });
+            reverseGeocode(pos2.coords.latitude, pos2.coords.longitude);
+            return;
+          } catch {
+            // 3) watchPosition fallback
+            try {
+              const pos3 = await watchOnce({ enableHighAccuracy: false });
+              reverseGeocode(pos3.coords.latitude, pos3.coords.longitude);
+              return;
+            } catch {
+              setIsLocating(false);
+              toast.error('Location temporarily unavailable. Please move to open area or try again.');
+              return;
+            }
+          }
+        }
+        // Other errors
+        if (err?.code === (err?.PERMISSION_DENIED ?? 1)) {
+          toast.error('Please allow location permission in browser settings.');
+        } else if (err?.code === (err?.TIMEOUT ?? 3)) {
+          toast.error('Location request timed out. Try again.');
+        } else {
+          toast.error('Could not get location. Please try again.');
+        }
+        setIsLocating(false);
+      }
+    } catch {
+      setIsLocating(false);
+      toast.error('Could not get location. Please try again.');
+    }
+  };
 
   const quickActions = [
     {
@@ -122,6 +233,57 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-100">
+      {/* Mobile Search + Categories (Swiggy/Zomato-style) */}
+      <div className="md:hidden sticky top-0 z-30 bg-gradient-to-br from-red-50 via-white to-red-100 px-4 pt-3 pb-3">
+        {/* Search */}
+        <div className="bg-white border rounded-xl shadow-sm px-3 py-2 flex items-center space-x-2">
+          <button
+            onClick={handleDetectLocation}
+            className="p-1 rounded-md text-red-800 disabled:opacity-50"
+            disabled={isLocating}
+            aria-label="Detect location"
+          >
+            {isLocating ? (
+              <span className="inline-block h-4 w-4 border-2 border-red-800 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <MapPin className="h-4 w-4 flex-shrink-0" />
+            )}
+          </button>
+          <input
+            type="text"
+            placeholder="Search or use current location..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="flex-1 text-sm outline-none placeholder:text-gray-400"
+          />
+          <Filter className="h-4 w-4 text-gray-500" />
+        </div>
+        {/* Horizontal chips */}
+        <div className="mt-3 overflow-x-auto [-webkit-overflow-scrolling:touch]">
+          <div className="flex space-x-2 min-w-max">
+            {['Biryanis','Pizzas','Burgers','Desserts','South Indian','North Indian','Chinese','Healthy'].map((chip) => (
+              <button
+                key={chip}
+                className="px-3 py-1.5 bg-white border rounded-full text-xs font-medium text-gray-700 whitespace-nowrap shadow-sm"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Promo banner */}
+        <div className="mt-3">
+          <div className="w-full rounded-xl overflow-hidden">
+            <div className="bg-gradient-to-r from-red-800 to-red-900 text-white px-4 py-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">Up to 50% OFF</div>
+                <div className="text-[11px] opacity-90">On top restaurants near you</div>
+              </div>
+              <div className="text-xs bg-white/15 px-3 py-1 rounded-full">Use TABULOO50</div>
+            </div>
+          </div>
+        </div>
+      </div>
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">

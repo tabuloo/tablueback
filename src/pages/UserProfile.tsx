@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { User, Phone, Mail, MapPin, Clock, Package, Calendar, Settings, Wallet, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Clock, Package, Calendar, Settings, Wallet, Plus, ArrowUpRight, ArrowDownLeft, LogOut } from 'lucide-react';
 import { validateIndianPhoneNumber, formatPhoneNumber } from '../utils/validation';
 import AddressForm from '../components/AddressForm';
 
  const UserProfile: React.FC = () => {
-   const { user, updateUser, isDefaultUsername } = useAuth();
+   const { user, updateUser, isDefaultUsername, logout } = useAuth();
   const { orders, bookings } = useApp();
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'bookings' | 'addresses' | 'wallet'>('profile');
   const [editMode, setEditMode] = useState(false);
@@ -140,6 +140,14 @@ import AddressForm from '../components/AddressForm';
               <p className="text-xs text-gray-600">{user.phone || user.email}</p>
             </div>
 
+            <button
+              onClick={async () => { await logout(); }}
+              className="w-full mb-4 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs flex items-center justify-center space-x-2"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+
             <div className="grid grid-cols-2 gap-2">
               {[
                 { id: 'profile', label: 'Profile', icon: User, count: null },
@@ -184,6 +192,14 @@ import AddressForm from '../components/AddressForm';
                 <h3 className="font-semibold text-gray-900">{user.name}</h3>
                 <p className="text-sm text-gray-600">{user.phone || user.email}</p>
               </div>
+
+              <button
+                onClick={async () => { await logout(); }}
+                className="w-full mb-4 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm flex items-center justify-center space-x-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </button>
 
               <nav className="space-y-2">
                 {[
