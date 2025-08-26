@@ -10,3 +10,8 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Safari and Chrome */
 }
+
+/* Ensure edge areas are black on mobile */
+html, body, #root {
+  background-color: #ffff;
+}
