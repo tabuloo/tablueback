@@ -26,8 +26,8 @@ const BottomNav: React.FC = () => {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40">
-      <div className="mx-auto max-w-7xl px-4 pb-safe">
-        <div className="rounded-t-2xl shadow-xl bg-red-800">
+      <div className="w-full">
+        <div className="bg-red-800 pb-safe">
           <ul className="grid grid-cols-4 py-2">
             {items.map((item) => {
               const active = location.pathname === item.path;
