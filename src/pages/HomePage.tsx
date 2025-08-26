@@ -114,6 +114,29 @@ const HomePage: React.FC = () => {
   const featuredRestaurants = openRestaurants.slice(0, 6); // Assuming 6 featured restaurants
   const popularMenuItems = menuItems.slice(0, 10); // Assuming 10 popular menu items
 
+  // Search filtering for restaurants and dishes
+  const searchQuery = searchText.trim().toLowerCase();
+  const matchedRestaurants = searchQuery
+    ? openRestaurants
+        .filter(r => {
+          const nameMatch = r.name?.toLowerCase().includes(searchQuery);
+          const typeMatch = r.type?.toLowerCase().includes(searchQuery);
+          const addressMatch = r.address?.toLowerCase().includes(searchQuery);
+          return nameMatch || typeMatch || addressMatch;
+        })
+        .slice(0, 12)
+    : featuredRestaurants;
+
+  const matchedMenuItems = searchQuery
+    ? menuItems
+        .filter(m => {
+          const nameMatch = m.name?.toLowerCase().includes(searchQuery);
+          const itemCategoryMatch = m.itemCategory?.toLowerCase().includes(searchQuery);
+          return nameMatch || itemCategoryMatch;
+        })
+        .slice(0, 20)
+    : popularMenuItems;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-100">
       {/* Mobile Search + Categories */}
@@ -129,6 +152,61 @@ const HomePage: React.FC = () => {
           />
           <Filter className="h-4 w-4 text-gray-500" />
         </div>
+        {/* Live suggestions dropdown */}
+        {searchQuery && (
+          <div className="mt-2 bg-white border rounded-xl shadow-lg divide-y">
+            {/* Restaurants suggestions */}
+            <div className="max-h-56 overflow-auto">
+              <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Places</div>
+              {matchedRestaurants.slice(0, 6).map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => {
+                    setSelectedRestaurant(r.id);
+                    setShowOrderFood(true);
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center space-x-3"
+                >
+                  <img src={r.images[0]} alt={r.name} className="w-10 h-10 rounded object-cover" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{r.name}</div>
+                    <div className="text-xs text-gray-500 truncate capitalize">{r.type} • {r.address}</div>
+                  </div>
+                </button>
+              ))}
+              {matchedRestaurants.length === 0 && (
+                <div className="px-3 py-3 text-sm text-gray-500">No places found</div>
+              )}
+            </div>
+            {/* Dishes suggestions */}
+            <div className="max-h-56 overflow-auto">
+              <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dishes</div>
+              {matchedMenuItems.slice(0, 8).map((m) => {
+                const r = restaurants.find(x => x.id === m.restaurantId);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setSelectedRestaurant(m.restaurantId);
+                      setShowOrderFood(true);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center space-x-3"
+                  >
+                    <img src={m.image} alt={m.name} className="w-10 h-10 rounded object-cover" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{m.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{m.itemCategory} • {r?.name || 'Unknown'}</div>
+                    </div>
+                    <div className="ml-auto text-xs font-semibold text-gray-900">₹{m.price}</div>
+                  </button>
+                );
+              })}
+              {matchedMenuItems.length === 0 && (
+                <div className="px-3 py-3 text-sm text-gray-500">No dishes found</div>
+              )}
+            </div>
+          </div>
+        )}
         <div className="mt-3 overflow-x-auto [-webkit-overflow-scrolling:touch]">
           <div className="flex space-x-2 min-w-max">
             {['Biryanis','Pizzas','Burgers','Desserts','South Indian','North Indian','Chinese','Healthy'].map((chip) => (
@@ -350,20 +428,27 @@ const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Featured Places Section */}
+        {/* Featured/Search Places Section */}
         <section className="mb-8 sm:mb-12">
           <div className="text-center mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">
-              Featured Places
+              {searchQuery ? 'Search Results — Places' : 'Featured Places'}
             </h2>
             <p className="text-gray-600 text-sm sm:text-base">
-              Discover the best restaurants, hotels, and food places in your area
+              {searchQuery
+                ? 'Matching restaurants based on your search'
+                : 'Discover the best restaurants, hotels, and food places in your area'}
             </p>
           </div>
 
           {/* Mobile: 2 items per row */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {featuredRestaurants.map((restaurant) => (
+            {matchedRestaurants.length === 0 && (
+              <div className="col-span-2 text-center text-gray-500 text-sm sm:text-base py-6">
+                No places found for "{searchText}".
+              </div>
+            )}
+            {matchedRestaurants.map((restaurant) => (
               <div key={restaurant.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
                 <img
                   src={restaurant.images[0]}
@@ -407,20 +492,27 @@ const HomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* Popular Menu Items Section */}
+        {/* Popular/Search Menu Items Section */}
         <section className="py-8 sm:py-12 bg-gray-50 rounded-lg">
           <div className="text-center mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">
-              Popular Menu Items
+              {searchQuery ? 'Search Results — Dishes' : 'Popular Menu Items'}
             </h2>
             <p className="text-gray-600 text-sm sm:text-base">
-              Explore delicious dishes from our partner restaurants
+              {searchQuery
+                ? 'Matching dishes based on your search'
+                : 'Explore delicious dishes from our partner restaurants'}
             </p>
           </div>
 
           {/* Mobile: 2 items per row */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {popularMenuItems.map((item) => {
+            {matchedMenuItems.length === 0 && (
+              <div className="col-span-2 text-center text-gray-500 text-sm sm:text-base py-6">
+                No dishes found for "{searchText}".
+              </div>
+            )}
+            {matchedMenuItems.map((item) => {
               const restaurant = restaurants.find(r => r.id === item.restaurantId);
               const cartQuantity = items.find(cartItem => cartItem.id === item.id)?.quantity || 0;
               
