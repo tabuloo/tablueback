@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, Star, User, ShoppingCart } from 'lucide-react';
+import { Home, Search, User, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 type NavItem = {
@@ -13,7 +13,7 @@ type NavItem = {
 const BottomNav: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const items: NavItem[] = [
     { key: 'home', label: 'Home', path: '/', icon: <Home className="h-5 w-5" /> },
@@ -27,7 +27,7 @@ const BottomNav: React.FC = () => {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40">
       <div className="mx-auto max-w-7xl px-4 pb-safe">
-        <div className="rounded-t-2xl shadow-xl border border-gray-200 bg-white/95 backdrop-blur">
+        <div className="rounded-t-2xl shadow-xl bg-red-800">
           <ul className="grid grid-cols-4 py-2">
             {items.map((item) => {
               const active = location.pathname === item.path;
@@ -36,7 +36,7 @@ const BottomNav: React.FC = () => {
                   <button
                     aria-label={item.label}
                     className={`flex flex-col items-center justify-center w-full py-1.5 text-xs transition-colors ${
-                      active ? 'text-red-800' : 'text-gray-600'
+                      active ? 'text-white' : 'text-white/90'
                     }`}
                     onClick={() => {
                       const requiresAuth = item.key === 'cart' || item.key === 'profile';
@@ -48,7 +48,7 @@ const BottomNav: React.FC = () => {
                     }}
                   >
                     <span className={`mb-0.5 ${active ? '' : ''}`}>{item.icon}</span>
-                    <span className="font-medium">{item.label}</span>
+                    <span className="font-semibold">{item.label}</span>
                   </button>
                 </li>
               );
